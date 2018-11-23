@@ -27,6 +27,15 @@ pcv1[ds1$PCV1.Given.Denied=='Given']<-1
 pcv2[ds1$PCV2.Given.Denied=='Given']<-1 
 pcv3[ds1$PCV.Booster.Given.Denied=='Given']<-1 
 
+sum(pcv1, na.rm=TRUE)
+sum(pcv2, na.rm=TRUE)
+sum(pcv3, na.rm=TRUE)
+
+
+#Look at birthdays of kids who got 1 dose--have they been eligible for 4 month and 9 month doses yet?
+
+dob.vaccinated<-as.Date(ds1$DOB[which(pcv1==1)])
+dob.vaccinated.month
 ```
 
 
@@ -37,9 +46,9 @@ age.dose1<-  as.Date(ds1$PCV1.Date[ds1$PCV1.Date!=""])- as.Date(ds1$DOB[ds1$PCV1
 age.dose2<-  as.Date( ds1$PCV2.Date[ds1$PCV2.Date!=""])- as.Date(ds1$DOB[ds1$PCV2.Date!=""])
 age.dose3<-  as.Date(ds1$PCV.Booster.Date[ds1$PCV.Booster.Date!=""])- as.Date(ds1$DOB[ds1$PCV.Booster.Date!=""])
 hist(as.numeric(age.dose1))
-median(as.numeric(age.dose1))
-median(as.numeric(age.dose2))
-median(as.numeric(age.dose3))
+median(as.numeric(age.dose1))/30
+median(as.numeric(age.dose2))/30
+median(as.numeric(age.dose3))/30
 
 
 ```
