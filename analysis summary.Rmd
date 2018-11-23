@@ -31,4 +31,15 @@ pcv3[ds1$PCV.Booster.Given.Denied=='Given']<-1
 
 
 #Vaccine timeliness among KB population
+```{r timeliness}
 
+age.dose1<-  as.Date(ds1$PCV1.Date[ds1$PCV1.Date!=""])- as.Date(ds1$DOB[ds1$PCV1.Date!=""])
+age.dose2<-  as.Date( ds1$PCV2.Date[ds1$PCV2.Date!=""])- as.Date(ds1$DOB[ds1$PCV2.Date!=""])
+age.dose3<-  as.Date(ds1$PCV.Booster.Date[ds1$PCV.Booster.Date!=""])- as.Date(ds1$DOB[ds1$PCV.Booster.Date!=""])
+hist(as.numeric(age.dose1))
+median(as.numeric(age.dose1))
+median(as.numeric(age.dose2))
+median(as.numeric(age.dose3))
+
+
+```
