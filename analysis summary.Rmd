@@ -1,0 +1,34 @@
+---
+title: "KB PCV"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(lubridate)
+```
+
+## Rollout of PCV in India
+We are using data from Kushi baby to evaluate the rollout of PCVs and timeliness of vaccination, and considering the potential for PCTS data to evaluate effect on pneumonia hospitalizations
+
+
+```{r import}
+ds1<-read.csv('C:/Users/DMW63/Desktop/KB_Child_Report.csv')
+```
+
+#Vaccine rollout among KB population
+What should be denominator here? Ideally would be # of kids who are eligible to receive vaccine in that district
+```{r rollout}
+pcv1<-0
+pcv2<-0
+pcv3<-0
+
+pcv1[ds1$PCV1.Given.Denied=='Given']<-1 
+pcv2[ds1$PCV2.Given.Denied=='Given']<-1 
+pcv3[ds1$PCV.Booster.Given.Denied=='Given']<-1 
+
+```
+
+
+#Vaccine timeliness among KB population
+
