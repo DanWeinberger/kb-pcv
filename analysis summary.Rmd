@@ -6,6 +6,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(lubridate)
+library(zoo)
 ```
 
 ## Rollout of PCV in India
@@ -17,11 +18,11 @@ ds1<-read.csv('C:/Users/DMW63/Desktop/KB_Child_Report.csv')
 ```
 
 #Vaccine rollout among KB population
-What should be denominator here? Ideally would be # of kids who are eligible to receive vaccine in that district
+What should be denominator here? Ideally would be # of kids who are eligible to receive vaccine in that district. Can look at kids in database who have birthdate after 
 ```{r rollout}
-pcv1<-0
-pcv2<-0
-pcv3<-0
+pcv1<-rep(0, times=nrow(ds1))
+pcv2<-rep(0, times=nrow(ds1))
+pcv3<-rep(0, times=nrow(ds1))
 
 pcv1[ds1$PCV1.Given.Denied=='Given']<-1 
 pcv2[ds1$PCV2.Given.Denied=='Given']<-1 
@@ -31,21 +32,41 @@ sum(pcv1, na.rm=TRUE)
 sum(pcv2, na.rm=TRUE)
 sum(pcv3, na.rm=TRUE)
 
-
 #Look at birthdays of kids who got 1 dose--have they been eligible for 4 month and 9 month doses yet?
+dob.vaccinated.dose1<-as.Date(ds1$DOB[which(pcv1==1)])
+hist(dob.vaccinated.dose1, 'months')
+dob.vaccinated.dose2<-as.Date(ds1$DOB[which(pcv2==1)])
 
-dob.vaccinated<-as.Date(ds1$DOB[which(pcv1==1)])
-dob.vaccinated.month
 ```
 
 
+#Focus just on kids who are age eligible (ignore for now catch up kids)
+```{r epi.only}
+routine.eligible.flag<-rep(0, times=nrow(ds1))
+routine.eligible.flag[as.Date(ds1$DOB)>=as.Date('2018-02-01') ]<-1
+table(routine.eligible.flag, pcv1)
+
+dob_month<-as.Date(as.yearmon(as.Date(ds1$DOB)))
+
+table(dob_month[routine.eligible.flag==1], pcv1[routine.eligible.flag==1])
+
+
+```
+
 #Vaccine timeliness among KB population
+As it is currently, this shows there are a bunch of kids getting roughly schedule, and a bunch who are getting catch up. Need to strtaify based on whether kids were eligible for the routine doses or not. If Routine immunization started in april 2018, then kids born after, say Feb 1, 2018 would be eligible for routine schedule
+
 ```{r timeliness}
 
-age.dose1<-  as.Date(ds1$PCV1.Date[ds1$PCV1.Date!=""])- as.Date(ds1$DOB[ds1$PCV1.Date!=""])
-age.dose2<-  as.Date( ds1$PCV2.Date[ds1$PCV2.Date!=""])- as.Date(ds1$DOB[ds1$PCV2.Date!=""])
-age.dose3<-  as.Date(ds1$PCV.Booster.Date[ds1$PCV.Booster.Date!=""])- as.Date(ds1$DOB[ds1$PCV.Booster.Date!=""])
+age.dose1<-  as.Date(ds1$PCV1.Date[which(pcv1==1 &routine.eligible.flag==1)])- as.Date(ds1$DOB[which(pcv1==1 & routine.eligible.flag==1)])
+plot(age.dose1, as.Date(ds1$DOB[which(pcv1==1 & routine.eligible.flag==1)]), bty='l', main='Later Age of 1st dose, earlier DOB', sub='suggests catch up doses')
+age.dose2<-  as.Date(ds1$PCV2.Date[which(pcv2==1 &routine.eligible.flag==1)])- as.Date(ds1$DOB[which(pcv2==1 &routine.eligible.flag==1)])
+age.dose3<-  as.Date(ds1$PCV.Booster.Date[which(pcv3==1 &routine.eligible.flag==1)])- as.Date(ds1$DOB[which(pcv3==1 &routine.eligible.flag==1)])
+
 hist(as.numeric(age.dose1))
+hist(as.numeric(age.dose2))
+hist(as.numeric(age.dose3))
+
 median(as.numeric(age.dose1))/30
 median(as.numeric(age.dose2))/30
 median(as.numeric(age.dose3))/30
