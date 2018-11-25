@@ -1,6 +1,8 @@
 ---
 title: "KB PCV"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -13,13 +15,15 @@ library(zoo)
 We are using data from Kushi baby to evaluate the rollout of PCVs and timeliness of vaccination, and considering the potential for PCTS data to evaluate effect on pneumonia hospitalizations
 
 
-```{r import}
+```{r import, echo=FALSE}
 ds1<-read.csv('C:/Users/DMW63/Desktop/KB_Child_Report.csv')
 ```
 
 #Vaccine rollout among KB population
 What should be denominator here? Ideally would be # of kids who are eligible to receive vaccine in that district. Can look at kids in database who have birthdate after 
-```{r rollout}
+Shows that May 2018 is when Number of doses delivered started ot pick up (spike in September). A few kids have vaccine receipt dates that are earlier. Are these real, or are they data entry errors?
+-It also looks like there must be a catch up campaign in effect, since there were a number of kids who received doses at older ages than would be expected if everyone was being vaccinated according to an EPI schedule.
+```{r rollout, echo=FALSE}
 pcv1<-rep(0, times=nrow(ds1))
 pcv2<-rep(0, times=nrow(ds1))
 pcv3<-rep(0, times=nrow(ds1))
@@ -28,50 +32,88 @@ pcv1[ds1$PCV1.Given.Denied=='Given']<-1
 pcv2[ds1$PCV2.Given.Denied=='Given']<-1 
 pcv3[ds1$PCV.Booster.Given.Denied=='Given']<-1 
 
+print("Number of kdis with 1,2,3 doses")
 sum(pcv1, na.rm=TRUE)
 sum(pcv2, na.rm=TRUE)
 sum(pcv3, na.rm=TRUE)
 
+#When were first doses distributed?
+hist(as.Date(ds1$PCV1.Date[ds1$PCV1.Date !='']), 'month', main='Date of First dose receipt', xlab='Date')
+
 dob_month<-as.Date(as.yearmon(as.Date(ds1$DOB)))
-hist(dob_month, 'month')
+par(mfrow=c(1,2))
+hist(dob_month, 'month', main='DOB of all kids in Kushi baby cohort')
 #Look at birthdays of kids who got 1 dose--have they been eligible for 4 month and 9 month doses yet?
 dob.vaccinated.dose1<-as.Date(ds1$DOB[which(pcv1==1)])
 
-hist(dob.vaccinated.dose1, 'months')
+hist(dob.vaccinated.dose1, 'months', main='DOB of kids who received 1 dose of vaccine')
 dob.vaccinated.dose2<-as.Date(ds1$DOB[which(pcv2==1)])
-
+par(mfrow=c(1,1))
 ```
 
 
 #Focus just on kids who are age eligible (ignore for now catch up kids)
-```{r epi.only}
+Since it looks like vaccination took off in earnest in May 2018, we will consider all kids born on or after March 1, 2018.
+```{r epi.only, echo=FALSE}
 routine.eligible.flag<-rep(0, times=nrow(ds1))
-routine.eligible.flag[as.Date(ds1$DOB)>=as.Date('2018-02-01') ]<-1
+routine.eligible.flag[as.Date(ds1$DOB)>=as.Date('2018-03-01') ]<-1
 #table(routine.eligible.flag, pcv1)
 
+tab1<-table(dob_month[routine.eligible.flag==1], pcv1[routine.eligible.flag==1])
+tab1.prop<-prop.table(tab1, margin = 1)
 
-table(dob_month[routine.eligible.flag==1], pcv1[routine.eligible.flag==1])
-
+print("Number of eligible kids registered in KB system who did not or did receive first dose of PCV, based on Month of birth")
+print(tab1)
+print("Proportion of eligible kids registered in KB system who did not or did receive first dose of PCV, based on month of birth")
+print(round(tab1.prop,2))
 
 ```
 
 #Vaccine timeliness among KB population
 As it is currently, this shows there are a bunch of kids getting roughly schedule, and a bunch who are getting catch up. Need to strtaify based on whether kids were eligible for the routine doses or not. If Routine immunization started in april 2018, then kids born after, say Feb 1, 2018 would be eligible for routine schedule. As analysis above shows, it takes a few months before really see high dose1 uptake. kids born after july or aug have good uptake of first dose
 
-```{r timeliness}
-
+```{r timeliness, echo=FALSE}
 age.dose1<-  as.Date(ds1$PCV1.Date[which(pcv1==1 &routine.eligible.flag==1)])- as.Date(ds1$DOB[which(pcv1==1 & routine.eligible.flag==1)])
-plot(age.dose1, as.Date(ds1$DOB[which(pcv1==1 & routine.eligible.flag==1)]), bty='l', main='Later Age of 1st dose, earlier DOB', sub='suggests catch up doses')
+#plot(age.dose1, as.Date(ds1$DOB[which(pcv1==1 & routine.eligible.flag==1)]), bty='l', main='Later Age of 1st dose, earlier DOB', sub='suggests catch up doses')
 age.dose2<-  as.Date(ds1$PCV2.Date[which(pcv2==1 &routine.eligible.flag==1)])- as.Date(ds1$DOB[which(pcv2==1 &routine.eligible.flag==1)])
 age.dose3<-  as.Date(ds1$PCV.Booster.Date[which(pcv3==1 &routine.eligible.flag==1)])- as.Date(ds1$DOB[which(pcv3==1 &routine.eligible.flag==1)])
 
-hist(as.numeric(age.dose1))
-hist(as.numeric(age.dose2))
-hist(as.numeric(age.dose3))
+print('age in days of eligible kids who received PCV 1st or second dose')
+par(mfrow=c(1,2))
+hist(as.numeric(age.dose1), main=median(as.numeric(age.dose1))/30)
+hist(as.numeric(age.dose2), main=median(as.numeric(age.dose2))/30)
+#hist(as.numeric(age.dose3), main=median(as.numeric(age.dose3))/30)
+par(mfrow=c(1,1))
 
-median(as.numeric(age.dose1))/30
-median(as.numeric(age.dose2))/30
-median(as.numeric(age.dose3))/30
+#Time between first and second dose
+
+dose.gap1.2<-age.dose2-age.dose1
+hist(as.numeric(dose.gap1.2), main=paste0('Median gap ',median(dose.gap1.2), ' days'))
 
 
+```
+
+#Next look at reports of respiratory illness among the KB cohort
+The vast majority have missing information. Is this because the question wasn't asked?
+```{r resp_illness, echo=FALSE}
+pneu1<-ds1$Times_Pneumonia
+pneu1[is.na(pneu1)]<-999
+table(pneu1)
+
+```
+
+#And how about in the PCTS system?
+In what age group are 'pneumonia cases' calculated? Is tis kids only? Including adults?
+```{r pcts, echo=FALSE}
+pc1<-read.csv('C:/Users/DMW63/Desktop/PCTS Count Data.csv')
+  # "Infant.death.Pneumonia..1.11.Months" ;"Infant.death.Pneumonia..1.5..Yrs.";"Pneumonia.Cases"  ;"Month"      
+overall<-pc1[pc1$S.NO.=='Total',]
+overall$month2<-paste0('01-',overall$Month)
+overall$date<-as.Date(overall$month2, format = '%d-%b-%y')
+par(mfrow=c(1,1))
+plot(overall$date, overall$Pneumonia.Cases, bty='l', type='l', main='Pneumonia cases')
+plot(overall$date, overall$Infant.death.Pneumonia..1.11.Months, bty='l', type='l', main='Pneumonia Death 1-11m')
+plot(overall$date, overall$Infant.death.Pneumonia..1.5..Yrs., bty='l', type='l', main='Pneumonia deaths 1-5y')
+par(mfrow=c(1,1))
+  
 ```
