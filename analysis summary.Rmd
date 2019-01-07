@@ -67,7 +67,7 @@ print("Number of eligible kids registered in KB system who did not or did receiv
 print(tab1)
 print("Proportion of eligible kids registered in KB system who did not or did receive first dose of PCV, based on month of birth")
 print(round(tab1.prop,2))
-
+plot(100*round(tab1.prop,2)[,2], ylab='Uptake (%)', xlab="Months since March 2018", main='Uptake of first dose among age-eligible children', bty='l')
 ```
 
 #Vaccine timeliness among KB population
