@@ -8,8 +8,12 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+#install.packages('survminer')
 library(lubridate)
 library(zoo)
+library(reshape2)
+library(survival)
+library(survminer)
 ```
 
 ## Rollout of PCV in India
@@ -17,7 +21,7 @@ We are using data from Kushi baby to evaluate the rollout of PCVs and timeliness
 
 
 ```{r import, echo=FALSE}
-ds1<-read.csv('C:/Users/DMW63/Desktop/KB_Child_Report.csv')
+ds1<-read.csv('../kb_data/KB_Child_Report.csv')
 ```
 
 #Vaccine rollout among KB population
@@ -38,8 +42,12 @@ sum(pcv1, na.rm=TRUE)
 sum(pcv2, na.rm=TRUE)
 sum(pcv3, na.rm=TRUE)
 
-#When were first doses distributed?
-hist(as.Date(ds1$PCV1.Date[ds1$PCV1.Date !='']), 'month', main='Date of First dose receipt', xlab='Date')
+```
+
+## When were first doses distributed?
+
+```{r}
+hist(as.Date(ds1$PCV1.Date[ds1$PCV1.Given.Denied =='Given']), 'month', main='Date of First dose receipt', xlab='Date')
 
 dob_month<-as.Date(as.yearmon(as.Date(ds1$DOB)))
 par(mfrow=c(1,2))
@@ -52,8 +60,7 @@ dob.vaccinated.dose2<-as.Date(ds1$DOB[which(pcv2==1)])
 par(mfrow=c(1,1))
 ```
 
-
-#Focus just on kids who are age eligible (ignore for now catch up kids)
+#Focus just on kids who are eligible based on birth date (ignore for now catch up kids)
 Since it looks like vaccination took off in earnest in May 2018, we will consider all kids born on or after March 1, 2018.
 ```{r epi.only, echo=FALSE}
 routine.eligible.flag<-rep(0, times=nrow(ds1))
@@ -63,11 +70,144 @@ routine.eligible.flag[as.Date(ds1$DOB)>=as.Date('2018-03-01') ]<-1
 tab1<-table(dob_month[routine.eligible.flag==1], pcv1[routine.eligible.flag==1])
 tab1.prop<-prop.table(tab1, margin = 1)
 
+tab2<-table(dob_month[routine.eligible.flag==1], pcv2[routine.eligible.flag==1])
+tab2.prop<-prop.table(tab2, margin = 1)
+
+tab3<-table(dob_month[routine.eligible.flag==1], pcv3[routine.eligible.flag==1])
+tab3.prop<-prop.table(tab3, margin = 1)
+
+monthdates<-unique(floor_date(as.Date(ds1$DOB,"%Y-%m-%d" ), unit='month' ) ) 
+monthdates<-monthdates[!is.na(monthdates)]
+
+monthdates<-monthdates[monthdates %in% as.Date(dimnames(tab2.prop)[[1]]) ]
+
 print("Number of eligible kids registered in KB system who did not or did receive first dose of PCV, based on Month of birth")
 print(tab1)
+
 print("Proportion of eligible kids registered in KB system who did not or did receive first dose of PCV, based on month of birth")
 print(round(tab1.prop,2))
-plot(100*round(tab1.prop,2)[,2], ylab='Uptake (%)', xlab="Months since March 2018", main='Uptake of first dose among age-eligible children', bty='l')
+
+plot(monthdates,100*round(tab1.prop,2)[,2], ylab='Uptake (%)', xlab="Birth Month", main='Uptake by dose and birth month, Oct 2019', bty='l', ylim=c(0, 100), type='l', xaxt='n')
+points(monthdates,100*round(tab2.prop,2)[,2], type='l', col='blue')
+points(monthdates,100*round(tab3.prop,2)[,2], type='l', col='red')
+axis(side=1, at=as.Date(c('2018-03-01','2018-09-01', '2019-03-01', '2019-09-01')), labels=c('Mar 2018','Sep 2018', 'Mar 2019', 'Sep 2019'))
+```
+
+
+# Look at uptake of 1,2, 3 doses by age
+First look at  uptake of 1,2, or booster dose by age in all eligible kids born after March 1,2018
+```{r}
+
+long1<-ds1[,c('Child.Registration.ID', 'DOB', 'PCV1.Date', 'PCV1.Given.Denied', 'PCV2.Date', 'PCV2.Given.Denied','PCV.Booster.Date', 'PCV.Booster.Given.Denied' )]
+
+long1$PCV1.Date<-as.Date(long1$PCV1.Date, format='%Y-%m-%d')
+long1$PCV2.Date<-as.Date(long1$PCV2.Date, format='%Y-%m-%d')
+long1$PCV.Booster.Date<-as.Date(long1$PCV.Booster.Date, format='%Y-%m-%d')
+long1$DOB<-as.Date(long1$DOB, format='%Y-%m-%d')
+
+long1$PCV1.Date[long1$PCV1.Given.Denied!='Given']<-NA
+long1$PCV2.Date[long1$PCV2.Given.Denied!='Given']<-NA
+long1$PCV.Booster.Date[long1$PCV.Booster.Given.Denied!='Given']<-NA
+long1$censor.date<-max(long1$PCV1.Date, na.rm=TRUE)
+
+long1$pcv1.aged<- as.numeric(long1$PCV1.Date - long1$DOB)
+long1$pcv2.aged<- as.numeric(long1$PCV2.Date - long1$DOB)
+long1$pcv.boost.aged<- as.numeric(long1$PCV.Booster.Date - long1$DOB)
+long1$censor.age<-as.numeric(long1$censor.date - long1$DOB)
+long1$init.age=0
+long1<-long1[long1$DOB>=as.Date('2018-03-01'),] #only eligible kids
+
+long2<-long1[,c('Child.Registration.ID', 'pcv1.aged',  'pcv2.aged', 'pcv.boost.aged','censor.age','init.age')]
+long2.m<-melt(long2, id.var=c('Child.Registration.ID'))
+long2.c<-dcast(long2.m,Child.Registration.ID+variable~. )
+names(long2.c) <- c('id','variable','aged')
+long2.c<-long2.c[!is.na(long2.c$aged),]
+ 
+format.ds<-function(ds, var1){
+  doseX.tj<-ds[ds$variable %in% c('censor.age','init.age',var1) ,]
+  doseX.tj$id<-factor(doseX.tj$id)
+  doseX.tj.spl<-split(doseX.tj, doseX.tj$id)
+  doseX.tj.spl<-lapply(doseX.tj.spl, function(x){
+    x$doseX<-0
+    x$doseX[x$variable==var1]<-1
+    x$doseXN<-sum(x$doseX)
+    x<- x[x$doseXN==0 | (x$doseXN==1 & x$variable != 'censor.age'),]
+    return(x)
+  }  )
+  doseX.tj<-do.call('rbind.data.frame', doseX.tj.spl)
+  doseX.tj$aged[doseX.tj$aged>(365*5)] <- 365*5
+  return(doseX.tj)
+}
+dose1.clean<-format.ds(long2.c, 'pcv1.aged')
+dose1.clean$dose=1
+dose2.clean<-format.ds(long2.c, 'pcv2.aged')
+dose2.clean$dose=2
+dose3.clean<-format.ds(long2.c, 'pcv.boost.aged')
+dose3.clean$dose<-3
+
+dose.comp<-rbind.data.frame(dose1.clean,dose2.clean,dose3.clean)
+dose.comp$agem<-dose.comp$aged/30.3
+dose.comp$agem[dose.comp$agem<0]<-0
+
+dose1.mod<- survfit(Surv(dose.comp$agem,dose.comp$doseX)~dose, data=dose.comp)
+ggsurvplot(dose1.mod, data = dose.comp, pval =F,  fun = "event")
+
+#summary(dose1.mod)$table
+#matrix(summary(dose1.mod)$surv, ncol=3)
+
+```
+
+Repeat, but only include kids who initiate vaccination
+```{r}
+long2<-long1[,c('Child.Registration.ID', 'pcv1.aged',  'pcv2.aged', 'pcv.boost.aged','censor.age','init.age')]
+long2<-long2[!is.na(long2$pcv1.aged),] #resticts to kids who got 1 dose
+
+long2.m<-melt(long2, id.var=c('Child.Registration.ID'))
+long2.c<-dcast(long2.m,Child.Registration.ID+variable~. )
+names(long2.c) <- c('id','variable','aged')
+long2.c<-long2.c[!is.na(long2.c$aged),]
+
+format.ds<-function(ds, var1){
+  doseX.tj<-ds[ds$variable %in% c('censor.age','init.age',var1) ,]
+  doseX.tj$id<-factor(doseX.tj$id)
+  doseX.tj.spl<-split(doseX.tj, doseX.tj$id)
+  doseX.tj.spl<-lapply(doseX.tj.spl, function(x){
+    x$doseX<-0
+    x$doseX[x$variable==var1]<-1
+    x$doseXN<-sum(x$doseX)
+    x<- x[x$doseXN==0 | (x$doseXN==1 & x$variable != 'censor.age'),]
+    return(x)
+  }  )
+  doseX.tj<-do.call('rbind.data.frame', doseX.tj.spl)
+  doseX.tj$aged[doseX.tj$aged>(365*5)] <- 365*5
+  return(doseX.tj)
+}
+dose2.clean<-format.ds(long2.c, 'pcv2.aged')
+dose2.clean$dose=2
+dose3.clean<-format.ds(long2.c, 'pcv.boost.aged')
+dose3.clean$dose<-3
+
+dose.comp<-rbind.data.frame(dose2.clean,dose3.clean)
+dose.comp$agem<-dose.comp$aged/30.3
+dose.comp$agem[dose.comp$agem<0]<-0
+
+dose1.mod<- survfit(Surv(dose.comp$agem,dose.comp$doseX)~dose, data=dose.comp)
+ggsurvplot(dose1.mod, data = dose.comp, pval =F,  fun = "event")
+```
+
+Age of kids who get 1st dose
+```{r}
+ds1$age.1st.dose<-  as.numeric(as.Date(ds1$PCV1.Date, "%Y-%m-%d") - as.Date(ds1$DOB, "%Y-%m-%d"))
+ds1$age.2nd.dose<-  as.numeric(as.Date(ds1$PCV2.Date, "%Y-%m-%d") - as.Date(ds1$DOB, "%Y-%m-%d"))
+ds1$age.3rd.dose<-  as.numeric(as.Date(ds1$PCV.Booster.Date, "%Y-%m-%d") - as.Date(ds1$DOB, "%Y-%m-%d"))
+
+hist(ds1$age.1st.dose/30.3)
+hist(ds1$age.2nd.dose/30.3)
+hist(ds1$age.3rd.dose/30.3)
+
+hist(ds1$age.1st.dose[year(as.Date(ds1$PCV1.Date, "%Y-%m-%d"))==2018 ] /30.3, main='Dose 1 in 2018')
+hist(ds1$age.1st.dose[year(as.Date(ds1$PCV1.Date, "%Y-%m-%d"))==2019 ] /30.3, main='Dose1 in 2019')
+
 ```
 
 #Vaccine timeliness among KB population
@@ -75,24 +215,27 @@ As it is currently, this shows there are a bunch of kids getting roughly schedul
 
 ```{r timeliness, echo=FALSE}
 age.dose1<-  as.Date(ds1$PCV1.Date[which(pcv1==1 &routine.eligible.flag==1)])- as.Date(ds1$DOB[which(pcv1==1 & routine.eligible.flag==1)])
+
 #plot(age.dose1, as.Date(ds1$DOB[which(pcv1==1 & routine.eligible.flag==1)]), bty='l', main='Later Age of 1st dose, earlier DOB', sub='suggests catch up doses')
+
 age.dose2<-  as.Date(ds1$PCV2.Date[which(pcv2==1 &routine.eligible.flag==1)])- as.Date(ds1$DOB[which(pcv2==1 &routine.eligible.flag==1)])
+
 age.dose3<-  as.Date(ds1$PCV.Booster.Date[which(pcv3==1 &routine.eligible.flag==1)])- as.Date(ds1$DOB[which(pcv3==1 &routine.eligible.flag==1)])
 
 print('age in days of eligible kids who received PCV 1st or second dose')
 par(mfrow=c(1,2))
-hist(as.numeric(age.dose1), main=median(as.numeric(age.dose1))/30)
-hist(as.numeric(age.dose2), main=median(as.numeric(age.dose2))/30)
+hist(as.numeric(age.dose1)/30.2, main=median(as.numeric(age.dose1))/30.3)
+hist(as.numeric(age.dose2)/30.3, main=median(as.numeric(age.dose2))/30.3)
 #hist(as.numeric(age.dose3), main=median(as.numeric(age.dose3))/30)
 par(mfrow=c(1,1))
 
 #Time between first and second dose
-
-dose.gap1.2<-age.dose2-age.dose1
-hist(as.numeric(dose.gap1.2), main=paste0('Median gap ',median(dose.gap1.2), ' days'))
-
+#THESE VECTORS HAVE DIFFERENT LENGTH
+#dose.gap1.2<-age.dose2-age.dose1#
+#hist(as.numeric(dose.gap1.2), main=paste0('Median gap ',median(dose.gap1.2), ' days'))
 
 ```
+
 
 #Next look at reports of respiratory illness among the KB cohort
 The vast majority have missing information. Is this because the question wasn't asked?
@@ -106,11 +249,11 @@ table(pneu1)
 #And how about in the PCTS system?
 In what age group are 'pneumonia cases' calculated? Is tis kids only? Including adults?
 ```{r pcts, echo=FALSE}
-pc1<-read.csv('C:/Users/DMW63/Desktop/PCTS Count Data.csv')
+pc1<-read.csv('../kb_data/Updated_PCTS_Count_Data.csv')
   # "Infant.death.Pneumonia..1.11.Months" ;"Infant.death.Pneumonia..1.5..Yrs.";"Pneumonia.Cases"  ;"Month"      
 overall<-pc1[pc1$S.NO.=='Total',]
 overall$month2<-paste0('01-',overall$Month)
-overall$date<-as.Date(overall$month2, format = '%d-%b-%y')
+overall$date<-as.Date(overall$month2, format = '%d-%b%Y')
 par(mfrow=c(1,1))
 plot(overall$date, overall$Pneumonia.Cases, bty='l', type='l', main='Pneumonia cases')
 plot(overall$date, overall$Infant.death.Pneumonia..1.11.Months, bty='l', type='l', main='Pneumonia Death 1-11m')
