@@ -1,9 +1,9 @@
 ---
 title: "KB PCV"
 output:
-  word_document: default
-  pdf_document: default
   html_document: default
+  pdf_document: default
+  word_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -152,9 +152,14 @@ dose.comp$agem[dose.comp$agem<0]<-0
 dose1.mod<- survfit(Surv(dose.comp$agem,dose.comp$doseX)~dose, data=dose.comp)
 ggsurvplot(dose1.mod, data = dose.comp, pval =F,  fun = "event")
 
+surv.summary<-surv_summary(dose1.mod,data=dose.comp)
+surv.summary.spl<-split(surv.summary, surv.summary$doseN)
+uptake<-sapply(surv.summary.spl, function(x) x$surv[round(x$time)==15])
 #summary(dose1.mod)$table
 #matrix(summary(dose1.mod)$surv, ncol=3)
-
+#1:201
+#202:452
+#453:571
 ```
 
 Repeat, but only include kids who initiate vaccination
@@ -206,7 +211,14 @@ hist(ds1$age.2nd.dose/30.3)
 hist(ds1$age.3rd.dose/30.3)
 
 hist(ds1$age.1st.dose[year(as.Date(ds1$PCV1.Date, "%Y-%m-%d"))==2018 ] /30.3, main='Dose 1 in 2018')
-hist(ds1$age.1st.dose[year(as.Date(ds1$PCV1.Date, "%Y-%m-%d"))==2019 ] /30.3, main='Dose1 in 2019')
+
+par(mfrow=c(1,3))
+hist(ds1$age.1st.dose[year(as.Date(ds1$PCV1.Date, "%Y-%m-%d"))==2019 ] /30.3, main='Dose1, 6w (2019)', xlim=c(0,14), breaks=30, freq=F, xlab='')
+abline(v=1.5, lty=2, col='red')
+hist(ds1$age.2nd.dose/30.3, xlim=c(0,14),main='Dose 2, 14w', breaks=30, freq=F, xlab='')
+abline(v=3.5, lty=2, col='red')
+hist(ds1$age.3rd.dose/30.3, xlim=c(0,14),main='Dose 3, 9m', breaks=30, freq=F, xlab='')
+abline(v=9, lty=2, col='red')
 
 ```
 
@@ -229,6 +241,8 @@ hist(as.numeric(age.dose2)/30.3, main=median(as.numeric(age.dose2))/30.3)
 #hist(as.numeric(age.dose3), main=median(as.numeric(age.dose3))/30)
 par(mfrow=c(1,1))
 
+
+
 #Time between first and second dose
 #THESE VECTORS HAVE DIFFERENT LENGTH
 #dose.gap1.2<-age.dose2-age.dose1#
@@ -236,11 +250,92 @@ par(mfrow=c(1,1))
 
 ```
 
+#Spatial variability in coverage
+```{r}
+unique(ds1$Block)
+#unique(ds1$PHC)
+
+
+long1<-ds1[,c('Child.Registration.ID', 'DOB', 'PCV1.Date', 'PCV1.Given.Denied', 'PCV2.Date', 'PCV2.Given.Denied','PCV.Booster.Date', 'PCV.Booster.Given.Denied','Block' )]
+
+long1$PCV1.Date<-as.Date(long1$PCV1.Date, format='%Y-%m-%d')
+long1$PCV2.Date<-as.Date(long1$PCV2.Date, format='%Y-%m-%d')
+long1$PCV.Booster.Date<-as.Date(long1$PCV.Booster.Date, format='%Y-%m-%d')
+long1$DOB<-as.Date(long1$DOB, format='%Y-%m-%d')
+
+long1$PCV1.Date[long1$PCV1.Given.Denied!='Given']<-NA
+long1$PCV2.Date[long1$PCV2.Given.Denied!='Given']<-NA
+long1$PCV.Booster.Date[long1$PCV.Booster.Given.Denied!='Given']<-NA
+long1$censor.date<-max(long1$PCV1.Date, na.rm=TRUE)
+
+long1$pcv1.aged<- as.numeric(long1$PCV1.Date - long1$DOB)
+long1$pcv2.aged<- as.numeric(long1$PCV2.Date - long1$DOB)
+long1$pcv.boost.aged<- as.numeric(long1$PCV.Booster.Date - long1$DOB)
+long1$censor.age<-as.numeric(long1$censor.date - long1$DOB)
+long1$init.age=0
+long1<-long1[long1$DOB>=as.Date('2018-03-01'),] #only eligible kids
+
+long2<-long1[,c('Child.Registration.ID', 'pcv1.aged',  'pcv2.aged', 'pcv.boost.aged','censor.age','init.age','Block')]
+long2.m<-melt(long2, id.var=c('Child.Registration.ID','Block'))
+long2.c<-dcast(long2.m,Child.Registration.ID+variable+Block~. )
+names(long2.c) <- c('id','variable','Block','aged')
+long2.c<-long2.c[!is.na(long2.c$aged),]
+ 
+format.ds<-function(ds, var1, doseN){
+  doseX.tj<-ds[ds$variable %in% c('censor.age','init.age',var1) ,]
+  doseX.tj$id<-factor(doseX.tj$id)
+  doseX.tj.spl<-split(doseX.tj, doseX.tj$id)
+  doseX.tj.spl<-lapply(doseX.tj.spl, function(x){
+    x$doseX<-0
+    x$doseX[x$variable==var1]<-1
+    x$doseXN<-sum(x$doseX)
+    x<- x[x$doseXN==0 | (x$doseXN==1 & x$variable != 'censor.age'),]
+    return(x)
+  }  )
+  doseX.tj<-do.call('rbind.data.frame', doseX.tj.spl)
+  doseX.tj$aged[doseX.tj$aged>(365*5)] <- 365*5
+  doseX.tj$doseN<-doseN
+  return(doseX.tj)
+}
+long2.c.spl<-split(long2.c, long2.c$Block)
+dose1.clean<-lapply(long2.c.spl, format.ds, var1='pcv1.aged', doseN=1)
+dose2.clean<-lapply(long2.c.spl, format.ds, var1='pcv2.aged', doseN=2)
+dose3.clean<-lapply(long2.c.spl, format.ds, var1='pcv.boost.aged', doseN=3)
+dose1.clean<-do.call('rbind.data.frame', dose1.clean)
+dose2.clean<-do.call('rbind.data.frame', dose2.clean)
+dose3.clean<-do.call('rbind.data.frame', dose3.clean)
+
+dose.comp<-rbind.data.frame(dose1.clean,dose2.clean,dose3.clean)
+dose.comp$agem<-dose.comp$aged/30.3
+dose.comp$agem[dose.comp$agem<0]<-0
+
+dose.comp<-dose.comp[order(dose.comp$Block,dose.comp$doseN),]
+
+dose.comp$Block<-factor(dose.comp$Block)
+blocks<-unique(dose.comp$Block)
+dosemod <- vector("list", length(blocks))
+for(i in 1:length(blocks)){
+  dosemod[[i]]<- survfit(Surv(dose.comp$agem,dose.comp$doseX)~doseN, data=dose.comp[dose.comp$Block==blocks[i],])
+}
+
+cols<-c('#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00')
+dosemod<- survfit(Surv(dose.comp$agem,dose.comp$doseX)~doseN+Block, data=dose.comp)
+ggsurvplot(dosemod, data = dose.comp, pval =F,  fun = "event",keep.data = TRUE, color='Block', palette=cols)
+
+surv.summary<-surv_summary(dosemod,data=dose.comp)
+surv.summary.spl<-split(surv.summary, paste(surv.summary$doseN, surv.summary$Block))
+uptake<-sapply(surv.summary.spl, function(x) (1-x$surv[round(x$time)>15])[1])
+uptake
+plot(surv.summary$time, 1-surv.summary$surv, col=cols[surv.summary$Block],bty='l', xlab='Age, months', ylab='Proportion vaccinated')
+#abline(h=c(0.2,0.4,0.6,0.8), col='lightgray')
+
+```
+
 
 #Next look at reports of respiratory illness among the KB cohort
 The vast majority have missing information. Is this because the question wasn't asked?
 ```{r resp_illness, echo=FALSE}
-pneu1<-ds1$Times_Pneumonia
+pneu1<-ds1$
 pneu1[is.na(pneu1)]<-999
 table(pneu1)
 
