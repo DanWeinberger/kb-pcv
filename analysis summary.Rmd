@@ -95,7 +95,7 @@ axis(side=1, at=as.Date(c('2018-03-01','2018-09-01', '2019-03-01', '2019-09-01')
 
 
 # Look at uptake of 1,2, 3 doses by age
-First look at  uptake of 1,2, or booster dose by age in all eligible kids born after March 1,2018
+First look at  uptake of 1,2, or booster dose by age in all eligible kids born after March 1,2018. his is done as a survival model because of the structure of the data. Many kids in the database don't become age-eligible to receive a dose, so we censor them.
 ```{r}
 
 long1<-ds1[,c('Child.Registration.ID', 'DOB', 'PCV1.Date', 'PCV1.Given.Denied', 'PCV2.Date', 'PCV2.Given.Denied','PCV.Booster.Date', 'PCV.Booster.Given.Denied' )]
@@ -150,11 +150,12 @@ dose.comp$agem<-dose.comp$aged/30.3
 dose.comp$agem[dose.comp$agem<0]<-0
 
 dose1.mod<- survfit(Surv(dose.comp$agem,dose.comp$doseX)~dose, data=dose.comp)
-ggsurvplot(dose1.mod, data = dose.comp, pval =F,  fun = "event")
+ggsurvplot(dose1.mod, data = dose.comp, pval =F,  fun = "event", xlab='Age (months)', ylab='Proportion vaccinated')
 
 surv.summary<-surv_summary(dose1.mod,data=dose.comp)
-surv.summary.spl<-split(surv.summary, surv.summary$doseN)
-uptake<-sapply(surv.summary.spl, function(x) x$surv[round(x$time)==15])
+surv.summary.spl<-split(surv.summary, surv.summary$dose)
+uptake<-1-sapply(surv.summary.spl, function(x) x$surv[length(x$surv)])
+uptake
 #summary(dose1.mod)$table
 #matrix(summary(dose1.mod)$surv, ncol=3)
 #1:201
@@ -199,6 +200,27 @@ dose.comp$agem[dose.comp$agem<0]<-0
 dose1.mod<- survfit(Surv(dose.comp$agem,dose.comp$doseX)~dose, data=dose.comp)
 ggsurvplot(dose1.mod, data = dose.comp, pval =F,  fun = "event")
 ```
+
+## 3 dose coverage for 12-24 month old kids
+```{r}
+
+ds.cov<-cbind.data.frame('pcv3'=pcv3, 'boost.date'=as.Date(ds1$PCV.Booster.Date,'%Y-%m-%d'), 'id'=1:length(pcv3), 'dob'=as.Date(ds1$DOB) )
+monthdateseq<-seq.Date(from=as.Date('2018-03-01'),to=as.Date('2019-10-01'), by='month')
+id.seq<-1:nrow(ds.cov)
+id.ds<-expand.grid(monthdateseq,id.seq)
+names(id.ds)<- c('monthdate', 'id')
+ds.cov2<-merge(ds.cov, id.ds, by='id', all=T)
+ds.cov2$dose3.vax.status.date<-0
+ds.cov2$dose3.vax.status.date[ds.cov2$boost.date<=ds.cov2$monthdate] <-1
+ds.cov2$agem<- as.numeric((ds.cov2$monthdate - ds.cov2$dob))/30.3
+ds.cov2.12.24m<-ds.cov2[ds.cov2$agem>=12 & ds.cov2$agem<24,]
+
+cov.date<-aggregate(ds.cov2.12.24m$dose3.vax.status.date, by=list('monthdate'=ds.cov2.12.24m$monthdate), FUN=mean)
+plot(cov.date$monthdate, cov.date$x, type='l', bty='l', xaxt='n', xlab='Date', ylab='3-dose coverage (12-24m)', ylim=c(0,1))
+axis(side=1, at=as.Date(c('2018-03-01','2018-09-01', '2019-03-01', '2019-09-01')), labels=c('Mar 2018','Sep 2018', 'Mar 2019', 'Sep 2019'))
+
+```
+
 
 Age of kids who get 1st dose
 ```{r}
@@ -313,10 +335,7 @@ dose.comp<-dose.comp[order(dose.comp$Block,dose.comp$doseN),]
 
 dose.comp$Block<-factor(dose.comp$Block)
 blocks<-unique(dose.comp$Block)
-dosemod <- vector("list", length(blocks))
-for(i in 1:length(blocks)){
-  dosemod[[i]]<- survfit(Surv(dose.comp$agem,dose.comp$doseX)~doseN, data=dose.comp[dose.comp$Block==blocks[i],])
-}
+
 
 cols<-c('#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00')
 dosemod<- survfit(Surv(dose.comp$agem,dose.comp$doseX)~doseN+Block, data=dose.comp)
@@ -324,7 +343,7 @@ ggsurvplot(dosemod, data = dose.comp, pval =F,  fun = "event",keep.data = TRUE, 
 
 surv.summary<-surv_summary(dosemod,data=dose.comp)
 surv.summary.spl<-split(surv.summary, paste(surv.summary$doseN, surv.summary$Block))
-uptake<-sapply(surv.summary.spl, function(x) (1-x$surv[round(x$time)>15])[1])
+uptake<-1-sapply(surv.summary.spl, function(x) x$surv[length(x$surv)])
 uptake
 plot(surv.summary$time, 1-surv.summary$surv, col=cols[surv.summary$Block],bty='l', xlab='Age, months', ylab='Proportion vaccinated')
 #abline(h=c(0.2,0.4,0.6,0.8), col='lightgray')
