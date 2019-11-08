@@ -24,6 +24,7 @@ We are using data from Kushi baby to evaluate the rollout of PCVs and timeliness
 
 ```{r import, echo=FALSE}
 ds1<-read.csv('../kb_data/KB_Child_Report.csv')
+
 ```
 
 #Vaccine rollout among KB population
@@ -175,9 +176,32 @@ uptake
 #453:571
 
 plot1<-ggsurvplot(dose1.mod, data = dose.comp, pval =F,  fun = "event", xlab='Age (months)', ylab='Proportion vaccinated')
-plot1+ geom_vline(xintercept = 1:5)
+#plot1+ geom_vline(xintercept = 1:5)
 
 ```
+Timeliness: define based on within 4 weeks of recomended date https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5720480/
+recommended is 1.5, 3.5 and 9 months
+```{r}
+surv.summary.spl<-split(surv.summary, surv.summary$dose)
+rec.month<-c(1.5,3.5,9)
+cov.1.month.after.rec<-rep(NA,3)
+cov.2.month.after.rec<-rep(NA,3)
+
+for(i in 1:3){
+  ds<-surv.summary.spl[[i]]
+  #index for 1 months after recommended date
+    rec.index1<-which( (abs(ds$time-(rec.month[i]+1)))==min(abs(ds$time-(rec.month[i]+1))))
+  rec.index2<-which( (abs(ds$time-(rec.month[i]+2)))==min(abs(ds$time-(rec.month[i]+2))))
+  cov.1.month.after.rec[i]<- 1-ds$surv[rec.index1]
+  cov.2.month.after.rec[i]<- 1-ds$surv[rec.index2]
+
+}
+timeliness<-cbind.data.frame('doses'=c(1,2,3),'uptake'=round(uptake,2),'cov.1m'=round(cov.1.month.after.rec,2),
+'cov.2m'=round(cov.2.month.after.rec,2), 'pct.timely1m'=round(cov.1.month.after.rec/uptake,2), 'pct.timely2m'=round(cov.2.month.after.rec/uptake,2))
+htmlTable(timeliness)
+
+```
+
 
 
 
