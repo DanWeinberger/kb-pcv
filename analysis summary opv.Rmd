@@ -1,0 +1,378 @@
+---
+title: "KB OPV"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+#install.packages('survminer')
+library(lubridate)
+library(zoo)
+library(reshape2)
+library(survival)
+library(survminer)
+library(htmlTable)
+library(polySegratio)
+```
+
+## OPV in India
+NOTE, SCHEDULE FOR OPV is 6w, 10w, 14w, 16-24m. So timeliness is hard to evaluate here because stop following kids at 24m
+
+```{r import, echo=FALSE}
+ds1<-read.csv('../kb_data/KB_Child_Report.csv')
+
+```
+
+#Vaccine rollout among KB population
+What should be denominator here? Ideally would be # of kids who are eligible to receive vaccine in that district. Can look at kids in database who have birthdate after 
+Shows that May 2018 is when Number of doses delivered started ot pick up (spike in September). A few kids have vaccine receipt dates that are earlier. Are these real, or are they data entry errors?
+-It also looks like there must be a catch up campaign in effect, since there were a number of kids who received doses at older ages than would be expected if everyone was being vaccinated according to an EPI schedule.
+```{r rollout, echo=FALSE}
+OPV1<-rep(0, times=nrow(ds1))
+OPV2<-rep(0, times=nrow(ds1))
+OPV3<-rep(0, times=nrow(ds1))
+OPV4<-rep(0, times=nrow(ds1))
+
+
+OPV1[ds1$OPV1.Given.Denied=='Given']<-1 
+OPV2[ds1$OPV2.Given.Denied=='Given']<-1 
+OPV3[ds1$OPV3.Given.Denied=='Given']<-1 
+OPV4[ds1$OPV.Booster.Given.Denied=='Given']<-1 
+
+print("Number of kids with 1,2,3 doses")
+sum(OPV1, na.rm=TRUE)
+sum(OPV2, na.rm=TRUE)
+sum(OPV3, na.rm=TRUE)
+sum(OPV4, na.rm=TRUE)
+
+```
+
+## When were first doses distributed?
+```{r}
+hist(as.Date(ds1$OPV1.Date[ds1$OPV1.Given.Denied =='Given']), 'month', main='Date of First dose receipt', xlab='Date')
+
+dob_month<-as.Date(as.yearmon(as.Date(ds1$DOB)))
+par(mfrow=c(1,2))
+hist(dob_month, 'month', main='DOB of all kids in Kushi baby cohort')
+#Look at birthdays of kids who got 1 dose--have they been eligible for 4 month and 9 month doses yet?
+dob.vaccinated.dose1<-as.Date(ds1$DOB[which(OPV1==1)])
+
+hist(dob.vaccinated.dose1, 'months', main='DOB of kids who received 1 dose of vaccine')
+dob.vaccinated.dose2<-as.Date(ds1$DOB[which(OPV2==1)])
+par(mfrow=c(1,1))
+```
+
+#Coverage by birth cohort
+Since it looks like vaccination took off in earnest in May 2018, we will consider all kids born on or after March 1, 2018.
+```{r epi.only, echo=FALSE}
+routine.eligible.flag<-rep(1, nrow(ds1))
+#routine.eligible.flag[as.Date(ds1$DOB)>=as.Date('2018-03-01') ]<-1
+#table(routine.eligible.flag, OPV1)
+
+#tab1<-table(dob_month[routine.eligible.flag==1], OPV1[routine.eligible.flag==1])
+tab1<-table(dob_month, OPV1)
+tab1.prop<-prop.table(tab1, margin = 1)
+
+tab2<-table(dob_month, OPV2)
+tab2.prop<-prop.table(tab2, margin = 1)
+
+tab3<-table(dob_month, OPV3)
+tab3.prop<-prop.table(tab3, margin = 1)
+
+tab4<-table(dob_month, OPV4)
+tab4.prop<-prop.table(tab4, margin = 1)
+
+monthdates<-unique(floor_date(as.Date(ds1$DOB,"%Y-%m-%d" ), unit='month' ) ) 
+monthdates<-monthdates[!is.na(monthdates)]
+
+monthdates<-monthdates[monthdates %in% as.Date(dimnames(tab2.prop)[[1]]) ]
+monthdates<-sort(monthdates)
+
+print("Number of eligible kids registered in KB system who did not or did receive first dose of OPV, based on Month of birth")
+print(tab1)
+
+print("Proportion of eligible kids registered in KB system who did not or did receive first dose of OPV, based on month of birth")
+print(round(tab1.prop,2))
+
+plot(monthdates,100*round(tab1.prop,2)[,2], ylab='Percent vaccinated', xlab="Birth Month", main='Uptake by dose and birth month as of Oct 2019', bty='l', ylim=c(0, 100), type='l', xaxt='n', xlim=as.Date(c('2016-07-01','2019-10-01')))
+points(monthdates,100*round(tab2.prop,2)[,2], type='l', col='blue')
+points(monthdates,100*round(tab3.prop,2)[,2], type='l', col='red')
+points(monthdates,100*round(tab4.prop,2)[,2], type='l', col='gray')
+
+axis(side=1, at=as.Date(c('2016-07-01','2017-07-01','2018-03-01','2018-09-01', '2019-03-01', '2019-09-01')), labels=c('Jul 2016','Jul 2017','Mar 2018','Sep 2018', 'Mar 2019', 'Sep 2019'))
+```
+
+
+What is rate of refusal?
+```{r}
+
+table(ds1$OPV1.Given.Denied[routine.eligible.flag==1])
+table(ds1$OPV2.Given.Denied[routine.eligible.flag==1])
+table(ds1$OPV.Booster.Given.Denied[routine.eligible.flag==1])
+
+```
+
+# Look at uptake of 1,2, 3 doses by age
+First look at  uptake of 1,2, or booster dose by age in all eligible kids born after March 1,2018. his is done as a survival model because of the structure of the data. Many kids in the database don't become age-eligible to receive a dose, so we censor them.
+```{r}
+
+long1<-ds1[,c('Child.Registration.ID', 'DOB', 'OPV1.Date', 'OPV1.Given.Denied', 'OPV2.Date', 'OPV2.Given.Denied','OPV3.Date','OPV3.Given.Denied','OPV.Booster.Date', 'OPV.Booster.Given.Denied' )]
+
+long1$OPV1.Date<-as.Date(long1$OPV1.Date, format='%Y-%m-%d')
+long1$OPV2.Date<-as.Date(long1$OPV2.Date, format='%Y-%m-%d')
+long1$OPV3.Date<-as.Date(long1$OPV3.Date, format='%Y-%m-%d')
+long1$OPV.Booster.Date<-as.Date(long1$OPV.Booster.Date, format='%Y-%m-%d')
+long1$DOB<-as.Date(long1$DOB, format='%Y-%m-%d')
+
+long1$OPV1.Date[long1$OPV1.Given.Denied!='Given']<-NA
+long1$OPV2.Date[long1$OPV2.Given.Denied!='Given']<-NA
+long1$OPV3.Date[long1$OPV3.Given.Denied!='Given']<-NA
+long1$OPV.Booster.Date[long1$OPV.Booster.Given.Denied!='Given']<-NA
+long1$censor.date<-max(long1$OPV1.Date, na.rm=TRUE)
+
+long1$OPV1.aged<- as.numeric(long1$OPV1.Date - long1$DOB)
+long1$OPV2.aged<- as.numeric(long1$OPV2.Date - long1$DOB)
+long1$OPV3.aged<- as.numeric(long1$OPV3.Date - long1$DOB)
+long1$OPV.boost.aged<- as.numeric(long1$OPV.Booster.Date - long1$DOB)
+long1$censor.age<-as.numeric(long1$censor.date - long1$DOB)
+long1$init.age=0
+long1<-long1[long1$DOB>=as.Date('2018-03-01'),] #only eligible kids
+
+long2<-long1[,c('Child.Registration.ID', 'OPV1.aged',  'OPV2.aged','OPV3.aged', 'OPV.boost.aged','censor.age','init.age')]
+long2.m<-melt(long2, id.var=c('Child.Registration.ID'))
+long2.c<-dcast(long2.m,Child.Registration.ID+variable~. )
+names(long2.c) <- c('id','variable','aged')
+long2.c<-long2.c[!is.na(long2.c$aged),]
+ 
+format.ds<-function(ds, var1){
+  doseX.tj<-ds[ds$variable %in% c('censor.age','init.age',var1) ,]
+  doseX.tj$id<-factor(doseX.tj$id)
+  doseX.tj.spl<-split(doseX.tj, doseX.tj$id)
+  doseX.tj.spl<-lapply(doseX.tj.spl, function(x){
+    x$doseX<-0
+    x$doseX[x$variable==var1]<-1
+    x$doseXN<-sum(x$doseX)
+    x<- x[x$doseXN==0 | (x$doseXN==1 & x$variable != 'censor.age'),]
+    return(x)
+  }  )
+  doseX.tj<-do.call('rbind.data.frame', doseX.tj.spl)
+  doseX.tj$aged[doseX.tj$aged>(365*2)] <- 365*2 #censor at 2 years
+  return(doseX.tj)
+}
+dose1.clean<-format.ds(long2.c, 'OPV1.aged')
+dose1.clean$dose=1
+dose2.clean<-format.ds(long2.c, 'OPV2.aged')
+dose2.clean$dose=2
+dose3.clean<-format.ds(long2.c, 'OPV3.aged')
+dose3.clean$dose=3
+dose4.clean<-format.ds(long2.c, 'OPV.boost.aged')
+dose4.clean$dose<-4
+
+dose.comp<-rbind.data.frame(dose1.clean,dose2.clean,dose3.clean,dose4.clean)
+dose.comp$agem<-dose.comp$aged/30.3
+dose.comp$agem[dose.comp$agem<0]<-0
+
+dose1.mod<- survfit(Surv(dose.comp$agem,dose.comp$doseX)~dose, data=dose.comp)
+ggsurvplot(dose1.mod, data = dose.comp, pval =F,  fun = "event", xlab='Age (months)', ylab='Proportion vaccinated')
+
+surv.summary<-surv_summary(dose1.mod,data=dose.comp)
+surv.summary.spl<-split(surv.summary, surv.summary$dose)
+uptake<-1-sapply(surv.summary.spl, function(x) x$surv[length(x$surv)])
+uptake
+#summary(dose1.mod)$table
+#matrix(summary(dose1.mod)$surv, ncol=3)
+#1:201
+#202:452
+#453:571
+
+plot1<-ggsurvplot(dose1.mod, data = dose.comp, pval =F,  fun = "event", xlab='Age (months)', ylab='Proportion vaccinated')
+#plot1+ geom_vline(xintercept = 1:5)
+
+```
+Timeliness: define based on within 4 weeks of recomended date https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5720480/
+recommended is 1.5, 3.5 and 9 months
+```{r}
+surv.summary.spl<-split(surv.summary, surv.summary$dose)
+rec.month<-c(1.5,2.5, 3.5,24)
+cov.1.month.after.rec<-rep(NA,3)
+cov.2.month.after.rec<-rep(NA,3)
+
+for(i in 1:4){
+  ds<-surv.summary.spl[[i]]
+  #index for 1 months after recommended date
+    rec.index1<-which( (abs(ds$time-(rec.month[i]+1)))==min(abs(ds$time-(rec.month[i]+1))))
+  rec.index2<-which( (abs(ds$time-(rec.month[i]+2)))==min(abs(ds$time-(rec.month[i]+2))))
+  cov.1.month.after.rec[i]<- 1-ds$surv[rec.index1]
+  cov.2.month.after.rec[i]<- 1-ds$surv[rec.index2]
+
+}
+timeliness<-cbind.data.frame('doses'=c(1,2,3,4),'uptake'=round(uptake,2),'cov.1m'=round(cov.1.month.after.rec,2),
+'cov.2m'=round(cov.2.month.after.rec,2), 'pct.timely1m'=round(cov.1.month.after.rec/uptake,2), 'pct.timely2m'=round(cov.2.month.after.rec/uptake,2))
+htmlTable(timeliness)
+
+```
+
+
+
+
+#Spatial variability in uptake
+```{r, fig.width=10, fig.height=2.5}
+unique(ds1$Block)
+#unique(ds1$PHC)
+
+totalN.block<-as.matrix(table(ds1$Block))
+N.block.dob.march2018<-as.matrix(table(ds1$Block[as.Date(ds1$DOB)>=as.Date('2018-01-01')] ))
+blocknames<-row.names(totalN.block)
+tab1<-cbind.data.frame(totalN.block,N.block.dob.march2018)
+tab1<-rbind(tab1, apply(tab1,2,sum))
+tab1<-cbind.data.frame( c(blocknames,'Total'), tab1)
+names(tab1)<-c('Admin. Region', 'All Children', 'Children born after Mar 2018')
+row.names(tab1)<-NULL
+htmlTable(tab1, rnames=F,align='c',caption="Table 1. Number of children in the Khushi Baby database, October 2019")
+
+long1<-ds1[,c('Child.Registration.ID', 'DOB', 'OPV1.Date', 'OPV1.Given.Denied', 'OPV2.Date','OPV3.Date','OPV3.Given.Denied', 'OPV2.Given.Denied','OPV.Booster.Date', 'OPV.Booster.Given.Denied','Block' )]
+
+long1$OPV1.Date<-as.Date(long1$OPV1.Date, format='%Y-%m-%d')
+long1$OPV2.Date<-as.Date(long1$OPV2.Date, format='%Y-%m-%d')
+long1$OPV3.Date<-as.Date(long1$OPV3.Date, format='%Y-%m-%d')
+long1$OPV.Booster.Date<-as.Date(long1$OPV.Booster.Date, format='%Y-%m-%d')
+long1$DOB<-as.Date(long1$DOB, format='%Y-%m-%d')
+
+long1$OPV1.Date[long1$OPV1.Given.Denied!='Given']<-NA
+long1$OPV2.Date[long1$OPV2.Given.Denied!='Given']<-NA
+long1$OPV3.Date[long1$OPV3.Given.Denied!='Given']<-NA
+long1$OPV.Booster.Date[long1$OPV.Booster.Given.Denied!='Given']<-NA
+long1$censor.date<-max(long1$OPV1.Date, na.rm=TRUE)
+
+long1$OPV1.aged<- as.numeric(long1$OPV1.Date - long1$DOB)
+long1$OPV2.aged<- as.numeric(long1$OPV2.Date - long1$DOB)
+long1$OPV3.aged<- as.numeric(long1$OPV3.Date - long1$DOB)
+long1$OPV.boost.aged<- as.numeric(long1$OPV.Booster.Date - long1$DOB)
+long1$censor.age<-as.numeric(long1$censor.date - long1$DOB)
+long1$init.age=0
+long1<-long1[long1$DOB>=as.Date('2018-03-01'),] #only eligible kids
+
+long2<-long1[,c('Child.Registration.ID', 'OPV1.aged',  'OPV2.aged','OPV3.aged', 'OPV.boost.aged','censor.age','init.age','Block')]
+long2.m<-melt(long2, id.var=c('Child.Registration.ID','Block'))
+long2.c<-dcast(long2.m,Child.Registration.ID+variable+Block~. )
+names(long2.c) <- c('id','variable','Block','aged')
+long2.c<-long2.c[!is.na(long2.c$aged),]
+ 
+format.ds<-function(ds, var1, doseN){
+  doseX.tj<-ds[ds$variable %in% c('censor.age','init.age',var1) ,]
+  doseX.tj$id<-factor(doseX.tj$id)
+  doseX.tj.spl<-split(doseX.tj, doseX.tj$id)
+  doseX.tj.spl<-lapply(doseX.tj.spl, function(x){
+    x$doseX<-0
+    x$doseX[x$variable==var1]<-1
+    x$doseXN<-sum(x$doseX)
+    x<- x[x$doseXN==0 | (x$doseXN==1 & x$variable != 'censor.age'),]
+    return(x)
+  }  )
+  doseX.tj<-do.call('rbind.data.frame', doseX.tj.spl)
+  doseX.tj$aged[doseX.tj$aged>(365*5)] <- 365*5
+  doseX.tj$doseN<-doseN
+  return(doseX.tj)
+}
+long2.c.spl<-split(long2.c, long2.c$Block)
+dose1.clean<-lapply(long2.c.spl, format.ds, var1='OPV1.aged', doseN=1)
+dose2.clean<-lapply(long2.c.spl, format.ds, var1='OPV2.aged', doseN=2)
+dose3.clean<-lapply(long2.c.spl, format.ds, var1='OPV3.aged', doseN=3)
+dose4.clean<-lapply(long2.c.spl, format.ds, var1='OPV.boost.aged', doseN=4)
+dose1.clean<-do.call('rbind.data.frame', dose1.clean)
+dose2.clean<-do.call('rbind.data.frame', dose2.clean)
+dose3.clean<-do.call('rbind.data.frame', dose3.clean)
+dose4.clean<-do.call('rbind.data.frame', dose4.clean)
+
+dose.comp<-rbind.data.frame(dose1.clean,dose2.clean,dose3.clean,dose4.clean)
+dose.comp$agem<-dose.comp$aged/30.3
+dose.comp$agem[dose.comp$agem<0]<-0
+
+dose.comp<-dose.comp[order(dose.comp$Block,dose.comp$doseN),]
+
+dose.comp$Block<-factor(dose.comp$Block)
+blocks<-unique(dose.comp$Block)
+
+cols<-c('#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00')
+dosemod<- survfit(Surv(dose.comp$agem,dose.comp$doseX)~doseN+Block, data=dose.comp)
+#ggsurvplot(dosemod, data = dose.comp, pval =F,  fun = "event",keep.data = TRUE, color='Block', palette=cols)
+
+surv.summary<-surv_summary(dosemod,data=dose.comp)
+surv.summary.spl<-split(surv.summary, paste(surv.summary$doseN, surv.summary$Block))
+uptake<-1-sapply(surv.summary.spl, function(x) x$surv[length(x$surv)])
+uptake
+#plot(surv.summary$time, 1-surv.summary$surv, col=cols[surv.summary$Block],bty='l', xlab='Age, months', ylab='Proportion vaccinated')
+#abline(h=c(0.2,0.4,0.6,0.8), col='lightgray')
+
+surv.summary.c<-1-acast(surv.summary[,c('time','doseN','Block','surv') ], time~doseN~Block )
+time.m<-as.numeric(dimnames(surv.summary.c)[[1]])
+target.time<-c(1.5,3.5, 9) #when should the vaccine be given?
+par(mfrow=c(1,4), mar=c(4,4,1,1))
+for(i in 1:4){
+  matplot(time.m,surv.summary.c[,i,], type='p', cex=0.25, pch=16,col=cols,bty='l', xlab='Age, months', ylab='Proportion vaccinated',lty=1, ylim=c(0,1))
+  abline(v=target.time[i], col='gray', lty=2)
+}
+
+#dosemod2<- survfit(Surv(dose.comp$agem,dose.comp$doseX)~Block, data=dose.comp)
+#ggsurv.list <- ggsurvplot_group_by(dosemod2, dose.comp, group.by = c("doseN"))
+```
+
+
+
+## 3 dose coverage for 12-24 month old kids
+```{r}
+
+ds.cov<-cbind.data.frame('OPV3'=OPV3,'OPV2'=OPV2,'OPV1'=OPV1, 'dose3.date'=as.Date(ds1$OPV3.Date,'%Y-%m-%d'),
+                         'dose1.date'=as.Date(ds1$OPV1.Date,'%Y-%m-%d'),
+                         'dose2.date'=as.Date(ds1$OPV2.Date,'%Y-%m-%d'),
+                         'id'=1:length(OPV3), 'dob'=as.Date(ds1$DOB) )
+monthdateseq<-seq.Date(from=as.Date('2018-03-01'),to=as.Date('2019-10-01'), by='month')
+id.seq<-1:nrow(ds.cov)
+id.ds<-expand.grid(monthdateseq,id.seq)
+names(id.ds)<- c('monthdate', 'id')
+ds.cov2<-merge(ds.cov, id.ds, by='id', all=T)
+
+ds.cov2$dose1.vax.status.date<-0
+ds.cov2$dose1.vax.status.date[ds.cov2$dose1.date<=ds.cov2$monthdate] <-1
+ds.cov2$dose2.vax.status.date<-0
+ds.cov2$dose2.vax.status.date[ds.cov2$dose2.date<=ds.cov2$monthdate] <-1
+ds.cov2$dose3.vax.status.date<-0
+ds.cov2$dose3.vax.status.date[ds.cov2$dose3.date<=ds.cov2$monthdate] <-1
+ds.cov2$agem<- as.numeric((ds.cov2$monthdate - ds.cov2$dob))/30.3
+ds.cov2.12.24m<-ds.cov2[ds.cov2$agem>=12 & ds.cov2$agem<24,]
+cov.date<-aggregate(ds.cov2.12.24m[,c('dose1.vax.status.date','dose2.vax.status.date','dose3.vax.status.date')], by=list('monthdate'=ds.cov2.12.24m$monthdate), FUN=mean)
+trans.col<- rgb(0,0,0, alpha=0.1)
+plot(cov.date$monthdate, cov.date$dose1.vax.status.date, type='l', bty='l', xaxt='n', xlab='Date', ylab='Uptake (12-24m)', ylim=c(0,1), las=1)
+abline(h=c(0.2, 0.4, 0.6,0.8,1.0), col=trans.col, lty=1)
+points(cov.date$monthdate,cov.date$dose1.vax.status.date, type='l' , lty=1, lwd=2)
+points(cov.date$monthdate,cov.date$dose2.vax.status.date, type='l' , lty=2, lwd=2)
+points(cov.date$monthdate,cov.date$dose3.vax.status.date, type='l' , lty=3, lwd=2)
+axis(side=1, at=as.Date(c('2018-03-01','2018-09-01', '2019-03-01', '2019-09-01')), labels=c('Mar 2018','Sep 2018', 'Mar 2019', 'Sep 2019'))
+
+```
+
+
+Age of kids who get 1st dose
+```{r}
+ds1$age.1st.dose<-  as.numeric(as.Date(ds1$OPV1.Date, "%Y-%m-%d") - as.Date(ds1$DOB, "%Y-%m-%d"))
+ds1$age.2nd.dose<-  as.numeric(as.Date(ds1$OPV2.Date, "%Y-%m-%d") - as.Date(ds1$DOB, "%Y-%m-%d"))
+ds1$age.3rd.dose<-  as.numeric(as.Date(ds1$OPV3.Date, "%Y-%m-%d") - as.Date(ds1$DOB, "%Y-%m-%d"))
+
+hist(ds1$age.1st.dose/30.3)
+hist(ds1$age.2nd.dose/30.3)
+hist(ds1$age.3rd.dose/30.3)
+
+hist(ds1$age.1st.dose[year(as.Date(ds1$OPV1.Date, "%Y-%m-%d"))==2018 ] /30.3, main='Dose 1 in 2018')
+
+par(mfrow=c(1,3), mar=c(4,2,1,1))
+hist(ds1$age.1st.dose[year(as.Date(ds1$OPV1.Date, "%Y-%m-%d"))==2019 ] /30.3, main='Dose1, 6w', xlim=c(0,14), breaks=30, freq=F, xlab='Age(m)')
+abline(v=1.5, lty=2, col='red')
+hist(ds1$age.2nd.dose[year(as.Date(ds1$OPV2.Date, "%Y-%m-%d"))==2019 ]/30.3, xlim=c(0,14),main='Dose 2, 14w', breaks=30, freq=F, xlab='Age(m)')
+abline(v=3.5, lty=2, col='red')
+hist(ds1$age.3rd.dose[year(as.Date(ds1$OPV3.Date, "%Y-%m-%d"))==2019 ]/30.3, xlim=c(0,14),main='Dose 3, 9m', breaks=30, freq=F, xlab='Age(m)')
+abline(v=9, lty=2, col='red')
+
+```
