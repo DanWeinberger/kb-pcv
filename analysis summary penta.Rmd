@@ -1,8 +1,8 @@
 ---
 title: "KB Penta+Measles"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
   word_document: default
 ---
 
@@ -28,10 +28,8 @@ ds1<-read.csv('../kb_data/KB_Child_Report.csv')
 
 ```
 
-#Vaccine rollout among KB population
-What should be denominator here? Ideally would be # of kids who are eligible to receive vaccine in that district. Can look at kids in database who have birthdate after 
-Shows that May 2018 is when Number of doses delivered started ot pick up (spike in September). A few kids have vaccine receipt dates that are earlier. Are these real, or are they data entry errors?
--It also looks like there must be a catch up campaign in effect, since there were a number of kids who received doses at older ages than would be expected if everyone was being vaccinated according to an EPI schedule.
+## Define variables
+
 ```{r rollout, echo=FALSE}
 PENTA1<-rep(0, times=nrow(ds1))
 PENTA2<-rep(0, times=nrow(ds1))
@@ -44,7 +42,13 @@ PENTA2[ds1$PENTA2.Given.Denied=='Given']<-1
 PENTA3[ds1$PENTA3.Given.Denied=='Given']<-1 
 Measles[ds1$Measles.Given.Denied=='Given']<-1 
 
-print("Number of kids with 1,2,3 doses")
+#Based on which kids get PCV at a high rate
+routine.eligible.flag<-rep(1, nrow(ds1))
+routine.eligible.flag[as.Date(ds1$DOB)>=as.Date('2018-03-01') ]<-1
+table(routine.eligible.flag, PENTA1)
+dob_month<-as.Date(as.yearmon(as.Date(ds1$DOB)))
+
+print("Number of kids with 1,2,3 doses Penta, or first Measles")
 sum(PENTA1, na.rm=TRUE)
 sum(PENTA2, na.rm=TRUE)
 sum(PENTA3, na.rm=TRUE)
@@ -52,27 +56,9 @@ sum(Measles, na.rm=TRUE)
 
 ```
 
-## When were first doses distributed?
-```{r}
-hist(as.Date(ds1$PENTA1.Date[ds1$PENTA1.Given.Denied =='Given']), 'month', main='Date of First dose receipt', xlab='Date')
+#Uptake of 1,2,3 doses of Penta, 1 dose Measles, by birth month
 
-dob_month<-as.Date(as.yearmon(as.Date(ds1$DOB)))
-par(mfrow=c(1,2))
-hist(dob_month, 'month', main='DOB of all kids in Kushi baby cohort')
-#Look at birthdays of kids who got 1 dose--have they been eligible for 4 month and 9 month doses yet?
-dob.vaccinated.dose1<-as.Date(ds1$DOB[which(PENTA1==1)])
-
-hist(dob.vaccinated.dose1, 'months', main='DOB of kids who received 1 dose of vaccine')
-dob.vaccinated.dose2<-as.Date(ds1$DOB[which(PENTA2==1)])
-par(mfrow=c(1,1))
-```
-
-#Coverage by birth cohort
-Since it looks like vaccination took off in earnest in May 2018. Looks like there was a drop off in booster in more recent cohorts, suggesting kids aren't getting vaccine on time
 ```{r epi.only, echo=FALSE}
-routine.eligible.flag<-rep(1, nrow(ds1))
-routine.eligible.flag[as.Date(ds1$DOB)>=as.Date('2018-03-01') ]<-1
-table(routine.eligible.flag, PENTA1)
 
 tab1<-table(dob_month, PENTA1)
 tab1<-table(dob_month, PENTA1)
@@ -93,12 +79,6 @@ monthdates<-monthdates[!is.na(monthdates)]
 monthdates<-monthdates[monthdates %in% as.Date(dimnames(tab2.prop)[[1]]) ]
 monthdates<-sort(monthdates)
 
-print("Number of eligible kids registered in KB system who did not or did receive first dose of PENTA, based on Month of birth")
-print(tab1)
-
-print("Proportion of all eligible kids registered in KB system who did not or did receive first dose of PENTA, based on month of birth")
-print(round(tab1.prop,2))
-
 last.date<-max(monthdates)
 plot(monthdates,100*round(tab1.prop,2)[,2], ylab='Percent vaccinated', xlab="Birth Month", main='Uptake by dose and birth month as of Oct 2019', bty='l', ylim=c(0, 100), type='l', xaxt='n', xlim=as.Date(c('2016-07-01','2019-10-01')))
 points(monthdates,100*round(tab2.prop,2)[,2], type='l', col='blue')
@@ -108,12 +88,8 @@ abline(v=c(last.date-(30.3*9),last.date-(30.3*12),last.date-(30.3*15) ), type='l
 axis(side=1, at=as.Date(c('2016-07-01','2017-07-01','2018-03-01','2018-09-01', '2019-03-01', '2019-09-01')), labels=c('Jul 2016','Jul 2017','Mar 2018','Sep 2018', 'Mar 2019', 'Sep 2019'))
 ```
 
-
 What is rate of refusal?
 ```{r}
-
-table(ds1$PENTA1.Given.Denied)
-table(ds1$PENTA2.Given.Denied)
 
 #Seems t be an uptick this year in recording reasons for not giving. Was this due to a change in software or actual increase in failure to vaccinate? They are still small #s compared to # who actually receive vaccine
 table(year(as.Date(ds1$Measles.Date,'%Y-%m-%d')), ds1$Measles.Given.Denied)
@@ -121,7 +97,7 @@ table(year(as.Date(ds1$Measles.Date,'%Y-%m-%d')), ds1$Measles.Given.Denied)
 ```
 
 ## Look at uptake of 1,2, 3 doses by age
-First look at  uptake of 1,2, or booster dose by age in all  kids born after March 1,2018. We restrict to this age group This is done as a survival model because of the structure of the data. Many kids in the database don't become age-eligible to receive a dose, so we censor them.
+First look at  uptake of 1,2, or booster dose by age in all  kids born after March 1,2018. We restrict to this age group to match with the PCV analyses This is done as a survival model because of the structure of the data. Many kids in the database don't become age-eligible to receive a dose, so we censor them.
 ```{r}
 
 long1<-ds1[,c('Child.Registration.ID', 'DOB', 'PENTA1.Date', 'PENTA1.Given.Denied', 'PENTA2.Date', 'PENTA2.Given.Denied','PENTA3.Date','PENTA3.Given.Denied','Measles.Date', 'Measles.Given.Denied' )]
@@ -186,6 +162,7 @@ ggsurvplot(dose1.mod, data = dose.comp, pval =F,  fun = "event", xlab='Age (mont
 surv.summary<-surv_summary(dose1.mod,data=dose.comp)
 surv.summary.spl<-split(surv.summary, surv.summary$dose)
 uptake<-1-sapply(surv.summary.spl, function(x) x$surv[length(x$surv)])
+print('Uptake')
 uptake
 #summary(dose1.mod)$table
 #matrix(summary(dose1.mod)$surv, ncol=3)
@@ -196,7 +173,8 @@ uptake
 plot1<-ggsurvplot(dose1.mod, data = dose.comp, pval =F,  fun = "event", xlab='Age (months)', ylab='Proportion vaccinated')
 #plot1+ geom_vline(xintercept = 1:5)
 ```
-Timeliness: define based on within 4 weeks of recomended date https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5720480/
+## Timeliness
+Define based on within 4 weeks of recomended date https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5720480/
 recommended is 1.5, 3.5 and 9 months
 ```{r}
 surv.summary.spl<-split(surv.summary, surv.summary$dose)
@@ -220,9 +198,7 @@ htmlTable(timeliness)
 ```
 
 
-
-
-#Spatial variability in uptake
+## Spatial variability in uptake
 ```{r, fig.width=10, fig.height=2.5}
 unique(ds1$Block)
 #unique(ds1$PHC)
@@ -324,7 +300,8 @@ for(i in 1:4){
 #ggsurv.list <- ggsurvplot_group_by(dosemod2, dose.comp, group.by = c("doseN"))
 ```
 
-## 3 dose coverage for 12-24 month old kids
+## Measles 1st dose coverage for 12-24 month old kids
+The decline is pronounced in kids 12-18m, not seen in 18-24m
 ```{r}
 
 ds.cov<-cbind.data.frame('Measles'=Measles,'PENTA3'=PENTA3,'PENTA2'=PENTA2,'PENTA1'=PENTA1, 
@@ -364,8 +341,7 @@ plot(cov.date$measles.vax.status.date)
 
 ```
 
-
-Age of kids who get 1st dose
+Histogram of age of kids when they are vaccinated
 ```{r}
 ds1$age.1st.dose<-  as.numeric(as.Date(ds1$PENTA1.Date, "%Y-%m-%d") - as.Date(ds1$DOB, "%Y-%m-%d"))
 ds1$age.2nd.dose<-  as.numeric(as.Date(ds1$PENTA2.Date, "%Y-%m-%d") - as.Date(ds1$DOB, "%Y-%m-%d"))
