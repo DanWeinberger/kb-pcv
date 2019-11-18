@@ -144,7 +144,7 @@ long1$PENTA3.aged<- as.numeric(long1$PENTA3.Date - long1$DOB)
 long1$Measles.aged<- as.numeric(long1$Measles.Date - long1$DOB)
 long1$censor.age<-as.numeric(long1$censor.date - long1$DOB)
 long1$init.age=0
-long1<-long1[long1$DOB>=as.Date('2018-03-01'),] #only eligible kids
+long1<-long1[long1$DOB>=as.Date('2018-03-01'),] #only include same kids included in PCV analysis
 
 long2<-long1[,c('Child.Registration.ID', 'PENTA1.aged',  'PENTA2.aged','PENTA3.aged', 'Measles.aged','censor.age','init.age')]
 long2.m<-melt(long2, id.var=c('Child.Registration.ID'))
