@@ -19,7 +19,9 @@ library(polySegratio)
 ```
 
 ## PENTA in India
-NOTE, SCHEDULE FOR PENTA is 6w, 10w, 14w, 16-24m. So timeliness is hard to evaluate here because stop following kids at 24m
+NOTE, SCHEDULE FOR PENTA is 6w, 10w, 14w, First dose of Measles is given at 9m. Or is supposed to be. Looking at the age distribution for Measles dose at 9m, it seems to be given mostly between 9 and 12m. also if restrict analyses to birth cohorts born after March 2018, coverage is lower than if include earlier years as well.  
+
+Coverage of 4th dose in 12-24m olds seems to have trailed off in last few months. Is this a reporting delay or something? This problem is unique to the Measles dose (9m) and is not seen in the primary doses. 
 
 ```{r import, echo=FALSE}
 ds1<-read.csv('../kb_data/KB_Child_Report.csv')
@@ -66,13 +68,13 @@ par(mfrow=c(1,1))
 ```
 
 #Coverage by birth cohort
-Since it looks like vaccination took off in earnest in May 2018, we will consider all kids born on or after March 1, 2018.
+Since it looks like vaccination took off in earnest in May 2018. Looks like there was a drop off in booster in more recent cohorts, suggesting kids aren't getting vaccine on time
 ```{r epi.only, echo=FALSE}
 routine.eligible.flag<-rep(1, nrow(ds1))
 routine.eligible.flag[as.Date(ds1$DOB)>=as.Date('2018-03-01') ]<-1
 table(routine.eligible.flag, PENTA1)
 
-tab1<-table(dob_month[routine.eligible.flag==1], PENTA1[routine.eligible.flag==1])
+tab1<-table(dob_month, PENTA1)
 tab1<-table(dob_month, PENTA1)
 tab1.prop<-prop.table(tab1, margin = 1)
 
@@ -94,7 +96,7 @@ monthdates<-sort(monthdates)
 print("Number of eligible kids registered in KB system who did not or did receive first dose of PENTA, based on Month of birth")
 print(tab1)
 
-print("Proportion of eligible kids registered in KB system who did not or did receive first dose of PENTA, based on month of birth")
+print("Proportion of all eligible kids registered in KB system who did not or did receive first dose of PENTA, based on month of birth")
 print(round(tab1.prop,2))
 
 plot(monthdates,100*round(tab1.prop,2)[,2], ylab='Percent vaccinated', xlab="Birth Month", main='Uptake by dose and birth month as of Oct 2019', bty='l', ylim=c(0, 100), type='l', xaxt='n', xlim=as.Date(c('2016-07-01','2019-10-01')))
@@ -364,6 +366,7 @@ Age of kids who get 1st dose
 ds1$age.1st.dose<-  as.numeric(as.Date(ds1$PENTA1.Date, "%Y-%m-%d") - as.Date(ds1$DOB, "%Y-%m-%d"))
 ds1$age.2nd.dose<-  as.numeric(as.Date(ds1$PENTA2.Date, "%Y-%m-%d") - as.Date(ds1$DOB, "%Y-%m-%d"))
 ds1$age.3rd.dose<-  as.numeric(as.Date(ds1$PENTA3.Date, "%Y-%m-%d") - as.Date(ds1$DOB, "%Y-%m-%d"))
+ds1$age.measles.dose<-  as.numeric(as.Date(ds1$Measles.Date, "%Y-%m-%d") - as.Date(ds1$DOB, "%Y-%m-%d"))
 
 hist(ds1$age.1st.dose/30.3)
 hist(ds1$age.2nd.dose/30.3)
@@ -376,7 +379,7 @@ hist(ds1$age.1st.dose[year(as.Date(ds1$PENTA1.Date, "%Y-%m-%d"))==2019 ] /30.3, 
 abline(v=1.5, lty=2, col='red')
 hist(ds1$age.2nd.dose[year(as.Date(ds1$PENTA2.Date, "%Y-%m-%d"))==2019 ]/30.3, xlim=c(0,14),main='Dose 2, 14w', breaks=30, freq=F, xlab='Age(m)')
 abline(v=3.5, lty=2, col='red')
-hist(ds1$age.3rd.dose[year(as.Date(ds1$PENTA3.Date, "%Y-%m-%d"))==2019 ]/30.3, xlim=c(0,14),main='Dose 3, 9m', breaks=30, freq=F, xlab='Age(m)')
+hist(ds1$age.measles.dose[year(as.Date(ds1$Measles.Date, "%Y-%m-%d"))==2019 ]/30.3, xlim=c(0,14),main='Measles Dose, 9m', breaks=30, freq=F, xlab='Age(m)')
 abline(v=9, lty=2, col='red')
 
 ```
