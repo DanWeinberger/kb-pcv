@@ -546,3 +546,17 @@ plot(pc3$date, pc3$Infant.death.Pneumonia..1.5..Yrs., col=cols[pc3$block])
 
 ```
 
+Map
+```{r}
+ds1$Updated.Lat[ds1$Updated.Lat<20]<-NA
+ds1$Updated.Long[ds1$Updated.Long<60]<-NA
+
+ds1$vax.12.23.boost<-NA
+ds1$vax.12.23.boost[(as.Date('2019-10-21')-as.Date(ds1$DOB))>365 &   as.Date(ds1$DOB)>=as.Date('2018-03-01') ]<-0
+ds1$vax.12.23.boost[ds1$PCV.Booster.Given.Denied=='Given'] <-1 
+cols2<-c(rgb(0,0,0, alpha=0.1),rgb(1,0,0, alpha=0.1))
+plot(ds1$Updated.Lat, ds1$Updated.Long, col=cols2[(ds1$vax.12.23.boost+1)], pch=16)
+
+```
+
+
