@@ -302,103 +302,120 @@ for(i in 1:3){
 #ggsurv.list <- ggsurvplot_group_by(dosemod2, dose.comp, group.by = c("doseN"))
 ```
 
-
-# Variability in uptake by sex
-```{r, fig.width=7, fig.height=2.5}
-unique(ds1$Sex)
-#unique(ds1$PHC)
-
-totalN.sex<-as.matrix(table(ds1$sex))
-N.sex.dob.march2018<-as.matrix(table(ds1$sex[as.Date(ds1$DOB)>=as.Date('2018-01-01')] ))
-sexnames<-row.names(totalN.sex)
-tab1<-cbind.data.frame(totalN.sex,N.sex.dob.march2018)
-tab1<-rbind(tab1, apply(tab1,2,sum))
-tab1<-cbind.data.frame( c(sexnames,'Total'), tab1)
-names(tab1)<-c('Admin. Region', 'All Children', 'Children born after Mar 2018')
-row.names(tab1)<-NULL
-htmlTable(tab1, rnames=F,align='c',caption="Table 1. Number of children in the Khushi Baby database, October 2019")
-
-long1<-ds1[,c('Child.Registration.ID', 'DOB', 'PCV1.Date', 'PCV1.Given.Denied', 'PCV2.Date', 'PCV2.Given.Denied','PCV.Booster.Date', 'PCV.Booster.Given.Denied','Sex' )]
-
-long1$PCV1.Date<-as.Date(long1$PCV1.Date, format='%Y-%m-%d')
-long1$PCV2.Date<-as.Date(long1$PCV2.Date, format='%Y-%m-%d')
-long1$PCV.Booster.Date<-as.Date(long1$PCV.Booster.Date, format='%Y-%m-%d')
-long1$DOB<-as.Date(long1$DOB, format='%Y-%m-%d')
-
-long1$PCV1.Date[long1$PCV1.Given.Denied!='Given']<-NA
-long1$PCV2.Date[long1$PCV2.Given.Denied!='Given']<-NA
-long1$PCV.Booster.Date[long1$PCV.Booster.Given.Denied!='Given']<-NA
-long1$censor.date<-max(long1$PCV1.Date, na.rm=TRUE)
-
-long1$pcv1.aged<- as.numeric(long1$PCV1.Date - long1$DOB)
-long1$pcv2.aged<- as.numeric(long1$PCV2.Date - long1$DOB)
-long1$pcv.boost.aged<- as.numeric(long1$PCV.Booster.Date - long1$DOB)
-long1$censor.age<-as.numeric(long1$censor.date - long1$DOB)
-long1$init.age=0
-long1<-long1[long1$DOB>=as.Date('2018-03-01'),] #only eligible kids
-
-long2<-long1[,c('Child.Registration.ID', 'pcv1.aged',  'pcv2.aged', 'pcv.boost.aged','censor.age','init.age','Sex')]
-long2.m<-melt(long2, id.var=c('Child.Registration.ID','Sex'))
-long2.c<-dcast(long2.m,Child.Registration.ID+variable+Sex~. )
-names(long2.c) <- c('id','variable','sex','aged')
-long2.c<-long2.c[!is.na(long2.c$aged),]
- 
-format.ds<-function(ds, var1, doseN){
-  doseX.tj<-ds[ds$variable %in% c('censor.age','init.age',var1) ,]
-  doseX.tj$id<-factor(doseX.tj$id)
-  doseX.tj.spl<-split(doseX.tj, doseX.tj$id)
-  doseX.tj.spl<-lapply(doseX.tj.spl, function(x){
-    x$doseX<-0
-    x$doseX[x$variable==var1]<-1
-    x$doseXN<-sum(x$doseX)
-    x<- x[x$doseXN==0 | (x$doseXN==1 & x$variable != 'censor.age'),]
-    return(x)
-  }  )
-  doseX.tj<-do.call('rbind.data.frame', doseX.tj.spl)
-  doseX.tj$aged[doseX.tj$aged>(365*5)] <- 365*5
-  doseX.tj$doseN<-doseN
-  return(doseX.tj)
+## Create function to run analysis by subgroup
+Do not need to modify this function. Call it in the chunk below
+```{r}
+stratified.function<-function(Select.Var){
+    Var.Levels<-unique(ds1[,Select.Var])
+    totalN.Strata<-as.matrix(table(ds1[,Select.Var]))
+    N.Strata.dob.march2018<-as.matrix(table(ds1[as.Date(ds1$DOB)>=as.Date('2018-01-01'), Select.Var] ))
+    Stratanames<-row.names(totalN.Strata)
+    tab1<-cbind.data.frame(totalN.Strata,N.Strata.dob.march2018)
+    tab1<-rbind(tab1, apply(tab1,2,sum))
+    tab1<-cbind.data.frame( c(Stratanames,'Total'), tab1)
+    names(tab1)<-c('Admin. Region', 'All Children', 'Children born after Mar 2018')
+    row.names(tab1)<-NULL
+    strata.tab1<-htmlTable(tab1, rnames=F,align='c',caption="Table 1. Number of children in the Khushi Baby database, October 2019")
+    
+    long1<-ds1[,c('Child.Registration.ID', 'DOB', 'PCV1.Date', 'PCV1.Given.Denied', 'PCV2.Date', 'PCV2.Given.Denied','PCV.Booster.Date', 'PCV.Booster.Given.Denied',Select.Var )]
+    
+    long1$PCV1.Date<-as.Date(long1$PCV1.Date, format='%Y-%m-%d')
+    long1$PCV2.Date<-as.Date(long1$PCV2.Date, format='%Y-%m-%d')
+    long1$PCV.Booster.Date<-as.Date(long1$PCV.Booster.Date, format='%Y-%m-%d')
+    long1$DOB<-as.Date(long1$DOB, format='%Y-%m-%d')
+    
+    long1$PCV1.Date[long1$PCV1.Given.Denied!='Given']<-NA
+    long1$PCV2.Date[long1$PCV2.Given.Denied!='Given']<-NA
+    long1$PCV.Booster.Date[long1$PCV.Booster.Given.Denied!='Given']<-NA
+    long1$censor.date<-max(long1$PCV1.Date, na.rm=TRUE)
+    
+    long1$pcv1.aged<- as.numeric(long1$PCV1.Date - long1$DOB)
+    long1$pcv2.aged<- as.numeric(long1$PCV2.Date - long1$DOB)
+    long1$pcv.boost.aged<- as.numeric(long1$PCV.Booster.Date - long1$DOB)
+    long1$censor.age<-as.numeric(long1$censor.date - long1$DOB)
+    long1$init.age=0
+    long1<-long1[long1$DOB>=as.Date('2018-03-01'),] #only eligible kids
+    
+    long2<-long1[,c('Child.Registration.ID', 'pcv1.aged',  'pcv2.aged', 'pcv.boost.aged','censor.age','init.age',Select.Var)]
+    long2.m<-melt(long2, id.var=c('Child.Registration.ID',Select.Var))
+    form1<-as.formula(paste0('Child.Registration.ID+variable+', Select.Var, '~.'))
+    long2.c<-dcast(long2.m,form1 )
+    names(long2.c) <- c('id','variable',Select.Var,'aged')
+    long2.c<-long2.c[!is.na(long2.c$aged),]
+     
+    format.ds<-function(ds, var1, doseN){
+      doseX.tj<-ds[ds$variable %in% c('censor.age','init.age',var1) ,]
+      doseX.tj$id<-factor(doseX.tj$id)
+      doseX.tj.spl<-split(doseX.tj, doseX.tj$id)
+      doseX.tj.spl<-lapply(doseX.tj.spl, function(x){
+        x$doseX<-0
+        x$doseX[x$variable==var1]<-1
+        x$doseXN<-sum(x$doseX)
+        x<- x[x$doseXN==0 | (x$doseXN==1 & x$variable != 'censor.age'),]
+        return(x)
+      }  )
+      doseX.tj<-do.call('rbind.data.frame', doseX.tj.spl)
+      doseX.tj$aged[doseX.tj$aged>(365*2)] <- 365*2
+      doseX.tj$doseN<-doseN
+      return(doseX.tj)
+    }
+    long2.c.spl<-split(long2.c, long2.c[,Select.Var])
+    dose1.clean<-lapply(long2.c.spl, format.ds, var1='pcv1.aged', doseN=1)
+    dose2.clean<-lapply(long2.c.spl, format.ds, var1='pcv2.aged', doseN=2)
+    dose3.clean<-lapply(long2.c.spl, format.ds, var1='pcv.boost.aged', doseN=3)
+    dose1.clean<-do.call('rbind.data.frame', dose1.clean)
+    dose2.clean<-do.call('rbind.data.frame', dose2.clean)
+    dose3.clean<-do.call('rbind.data.frame', dose3.clean)
+    
+    dose.comp<-rbind.data.frame(dose1.clean,dose2.clean,dose3.clean)
+    dose.comp$agem<-dose.comp$aged/30.3
+    dose.comp$agem[dose.comp$agem<0]<-0
+    
+    dose.comp<-dose.comp[order(dose.comp[,Select.Var],dose.comp$doseN),]
+    
+    dose.comp[,Select.Var]<-factor(dose.comp[,Select.Var])
+    Stratas<-unique(dose.comp[,Select.Var])
+    
+    cols<-c('#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00')
+    form2<-as.formula(paste0('Surv(dose.comp$agem,dose.comp$doseX)~doseN+',Select.Var))
+    dosemod<- survfit(form2, data=dose.comp)
+    
+    surv.summary<-surv_summary(dosemod,data=dose.comp)
+    surv.summary.spl<-split(surv.summary, paste(surv.summary$doseN, surv.summary[,Select.Var]))
+    uptake<-1-sapply(surv.summary.spl, function(x) x$surv[length(x$surv)])
+    uptake
+    
+    form3<-as.formula(paste0('time~doseN~',Select.Var))
+    surv.summary.c<-1-acast(surv.summary[,c('time','doseN',Select.Var,'surv') ],form3 )
+    time.m<-as.numeric(dimnames(surv.summary.c)[[1]])
+    target.time<-c(1.5,3.5, 9) #when should the vaccine be given?
+    par(mfrow=c(1,3), mar=c(4,4,1,1))
+    for(i in 1:3){
+      matplot(time.m,surv.summary.c[,i,], type='p', cex=0.25, pch=16,col=cols,bty='l', xlab='Age, months', ylab='Proportion vaccinated',lty=1, ylim=c(0,1))
+      abline(v=target.time[i], col='gray', lty=2)
+    }
+  p1.base<- recordPlot()
+ out.obj<-list('plots'=p1.base,'uptake'=uptake,'Strata'=Var.Levels, 'summary.table'=strata.tab1)
 }
-long2.c.spl<-split(long2.c, long2.c$sex)
-dose1.clean<-lapply(long2.c.spl, format.ds, var1='pcv1.aged', doseN=1)
-dose2.clean<-lapply(long2.c.spl, format.ds, var1='pcv2.aged', doseN=2)
-dose3.clean<-lapply(long2.c.spl, format.ds, var1='pcv.boost.aged', doseN=3)
-dose1.clean<-do.call('rbind.data.frame', dose1.clean)
-dose2.clean<-do.call('rbind.data.frame', dose2.clean)
-dose3.clean<-do.call('rbind.data.frame', dose3.clean)
 
-dose.comp<-rbind.data.frame(dose1.clean,dose2.clean,dose3.clean)
-dose.comp$agem<-dose.comp$aged/30.3
-dose.comp$agem[dose.comp$agem<0]<-0
-
-dose.comp<-dose.comp[order(dose.comp$sex,dose.comp$doseN),]
-
-dose.comp$sex<-factor(dose.comp$sex)
-sexs<-unique(dose.comp$sex)
-
-cols<-c('#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00')
-dosemod<- survfit(Surv(dose.comp$agem,dose.comp$doseX)~doseN+sex, data=dose.comp)
-#ggsurvplot(dosemod, data = dose.comp, pval =F,  fun = "event",keep.data = TRUE, color='sex', palette=cols)
-
-surv.summary<-surv_summary(dosemod,data=dose.comp)
-surv.summary.spl<-split(surv.summary, paste(surv.summary$doseN, surv.summary$sex))
-uptake<-1-sapply(surv.summary.spl, function(x) x$surv[length(x$surv)])
-uptake
-#plot(surv.summary$time, 1-surv.summary$surv, col=cols[surv.summary$sex],bty='l', xlab='Age, months', ylab='Proportion vaccinated')
-#abline(h=c(0.2,0.4,0.6,0.8), col='lightgray')
-
-surv.summary.c<-1-acast(surv.summary[,c('time','doseN','sex','surv') ], time~doseN~sex )
-time.m<-as.numeric(dimnames(surv.summary.c)[[1]])
-target.time<-c(1.5,3.5, 9) #when should the vaccine be given?
-par(mfrow=c(1,3), mar=c(4,4,1,1))
-for(i in 1:3){
-  matplot(time.m,surv.summary.c[,i,], type='p', cex=0.25, pch=16,col=cols,bty='l', xlab='Age, months', ylab='Proportion vaccinated',lty=1, ylim=c(0,1))
-  abline(v=target.time[i], col='gray', lty=2)
-}
-
-#dosemod2<- survfit(Surv(dose.comp$agem,dose.comp$doseX)~sex, data=dose.comp)
-#ggsurv.list <- ggsurvplot_group_by(dosemod2, dose.comp, group.by = c("doseN"))
 ```
+
+## Variability in uptake by Block
+```{r,fig.width=7, fig.height=2.5}
+block.analysis<-stratified.function('Block')
+block.analysis$plots
+block.analysis$summary.table
+block.analysis$uptake
+```
+
+## Variability in uptake by sex
+```{r,fig.width=7, fig.height=2.5}
+sex.analysis<-stratified.function('Sex')
+sex.analysis$plots
+sex.analysis$summary.table
+sex.analysis$uptake
+```
+
 
 
 
