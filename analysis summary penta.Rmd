@@ -1,8 +1,8 @@
 ---
 title: "KB Penta+Measles"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
   word_document: default
 ---
 
@@ -71,7 +71,7 @@ par(mfrow=c(1,1))
 Since it looks like vaccination took off in earnest in May 2018. Looks like there was a drop off in booster in more recent cohorts, suggesting kids aren't getting vaccine on time
 ```{r epi.only, echo=FALSE}
 routine.eligible.flag<-rep(1, nrow(ds1))
-routine.eligible.flag[as.Date(ds1$DOB)>=as.Date('2018-03-01') ]<-1
+routine.eligible.flag[as.Date(ds1$DOB)>=as.Date('2018-03-01')  ]<-1
 table(routine.eligible.flag, PENTA1)
 
 tab1<-table(dob_month, PENTA1)
