@@ -416,6 +416,18 @@ sex.analysis$summary.table
 sex.analysis$uptake
 ```
 
+## Variability in uptake by quarter of birth
+```{r,fig.width=7, fig.height=2.5}
+ds1$birthqtr<-NA
+ds1$birthqtr<-quarter(as.Date(ds1$DOB, '%Y-%m-%d'))
+ds1$birthqtr<-paste0('q', ds1$birthqtr)
+ds1$birthqtr[ds1$birthqtr=='qNA']<-NA
+qtr.analysis<-stratified.function('birthqtr')
+qtr.analysis$plots
+qtr.analysis$summary.table
+qtr.analysis$uptake
+```
+
 
 
 
