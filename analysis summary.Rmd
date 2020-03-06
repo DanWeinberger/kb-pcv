@@ -23,7 +23,8 @@ We are using data from Kushi baby to evaluate the rollout of PCVs and timeliness
 
 
 ```{r import, echo=FALSE}
-ds1<-read.csv('../kb_data/KB_Child_Report.csv')
+ds1<-read.csv('../kb_data/KB_Child_Report 2020_3_6.csv')
+ds1$Child.Registration.ID<-1:nrow(ds1)
 
 ```
 
@@ -91,7 +92,7 @@ print(tab1)
 print("Proportion of eligible kids registered in KB system who did not or did receive first dose of PCV, based on month of birth")
 print(round(tab1.prop,2))
 
-plot(monthdates,100*round(tab1.prop,2)[,2], ylab='Percent vaccinated', xlab="Birth Month", main='Uptake by dose and birth month as of Oct 2019', bty='l', ylim=c(0, 100), type='l', xaxt='n', xlim=as.Date(c('2016-07-01','2019-10-01')))
+plot(monthdates,100*round(tab1.prop,2)[,2], ylab='Percent vaccinated', xlab="Birth Month", main='Uptake by dose and birth month as of Feb 2020', bty='l', ylim=c(0, 100), type='l', xaxt='n', xlim=as.Date(c('2016-07-01','2019-10-01')))
 points(monthdates,100*round(tab2.prop,2)[,2], type='l', col='blue')
 points(monthdates,100*round(tab3.prop,2)[,2], type='l', col='red')
 axis(side=1, at=as.Date(c('2016-07-01','2017-07-01','2018-03-01','2018-09-01', '2019-03-01', '2019-09-01')), labels=c('Jul 2016','Jul 2017','Mar 2018','Sep 2018', 'Mar 2019', 'Sep 2019'))
@@ -112,6 +113,7 @@ First look at  uptake of 1,2, or booster dose by age in all eligible kids born a
 ```{r}
 
 long1<-ds1[,c('Child.Registration.ID', 'DOB', 'PCV1.Date', 'PCV1.Given.Denied', 'PCV2.Date', 'PCV2.Given.Denied','PCV.Booster.Date', 'PCV.Booster.Given.Denied' )]
+long1$Child.Registration.ID<-1:nrow(long1)
 
 long1$PCV1.Date<-as.Date(long1$PCV1.Date, format='%Y-%m-%d')
 long1$PCV2.Date<-as.Date(long1$PCV2.Date, format='%Y-%m-%d')
@@ -132,7 +134,7 @@ long1<-long1[long1$DOB>=as.Date('2018-03-01'),] #only eligible kids
 
 long2<-long1[,c('Child.Registration.ID', 'pcv1.aged',  'pcv2.aged', 'pcv.boost.aged','censor.age','init.age')]
 long2.m<-melt(long2, id.var=c('Child.Registration.ID'))
-long2.c<-dcast(long2.m,Child.Registration.ID+variable~. )
+long2.c<-dcast(long2.m,Child.Registration.ID+variable~. , fun.aggregate = mean)
 names(long2.c) <- c('id','variable','aged')
 long2.c<-long2.c[!is.na(long2.c$aged),]
  
@@ -221,6 +223,7 @@ row.names(tab1)<-NULL
 htmlTable(tab1, rnames=F,align='c',caption="Table 1. Number of children in the Khushi Baby database, October 2019")
 
 long1<-ds1[,c('Child.Registration.ID', 'DOB', 'PCV1.Date', 'PCV1.Given.Denied', 'PCV2.Date', 'PCV2.Given.Denied','PCV.Booster.Date', 'PCV.Booster.Given.Denied','Block' )]
+long1$Child.Registration.ID<-1:nrow(long1)
 
 long1$PCV1.Date<-as.Date(long1$PCV1.Date, format='%Y-%m-%d')
 long1$PCV2.Date<-as.Date(long1$PCV2.Date, format='%Y-%m-%d')
