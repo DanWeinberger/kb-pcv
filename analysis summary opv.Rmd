@@ -22,8 +22,8 @@ library(polySegratio)
 NOTE, SCHEDULE FOR OPV is 6w, 10w, 14w, 16-24m. So timeliness is hard to evaluate here because stop following kids at 24m
 
 ```{r import, echo=FALSE}
-ds1<-read.csv('../kb_data/KB_Child_Report.csv')
-
+ds1<-read.csv('../kb_data/KB_Child_Report 2020_3_6.csv')
+ds1$Child.Registration.ID<-1:nrow(ds1)
 ```
 
 #Vaccine rollout among KB population
@@ -97,7 +97,7 @@ print(tab1)
 print("Proportion of eligible kids registered in KB system who did not or did receive first dose of OPV, based on month of birth")
 print(round(tab1.prop,2))
 
-plot(monthdates,100*round(tab1.prop,2)[,2], ylab='Percent vaccinated', xlab="Birth Month", main='Uptake by dose and birth month as of Oct 2019', bty='l', ylim=c(0, 100), type='l', xaxt='n', xlim=as.Date(c('2016-07-01','2019-10-01')))
+plot(monthdates,100*round(tab1.prop,2)[,2], ylab='Percent vaccinated', xlab="Birth Month", main='Uptake by dose and birth month as of Feb 2020', bty='l', ylim=c(0, 100), type='l', xaxt='n', xlim=as.Date(c('2016-07-01','2019-10-01')))
 points(monthdates,100*round(tab2.prop,2)[,2], type='l', col='blue')
 points(monthdates,100*round(tab3.prop,2)[,2], type='l', col='red')
 points(monthdates,100*round(tab4.prop,2)[,2], type='l', col='gray')
@@ -329,7 +329,7 @@ ds.cov<-cbind.data.frame('OPV3'=OPV3,'OPV2'=OPV2,'OPV1'=OPV1, 'dose3.date'=as.Da
                          'dose1.date'=as.Date(ds1$OPV1.Date,'%Y-%m-%d'),
                          'dose2.date'=as.Date(ds1$OPV2.Date,'%Y-%m-%d'),
                          'id'=1:length(OPV3), 'dob'=as.Date(ds1$DOB) )
-monthdateseq<-seq.Date(from=as.Date('2018-03-01'),to=as.Date('2019-10-01'), by='month')
+monthdateseq<-seq.Date(from=as.Date('2018-03-01'),to=as.Date('2020-03-01'), by='month')
 id.seq<-1:nrow(ds.cov)
 id.ds<-expand.grid(monthdateseq,id.seq)
 names(id.ds)<- c('monthdate', 'id')

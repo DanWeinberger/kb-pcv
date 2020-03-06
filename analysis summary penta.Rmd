@@ -24,8 +24,8 @@ NOTE, SCHEDULE FOR PENTA is 6w, 10w, 14w, First dose of Measles is given at 9m (
 Coverage of 4th dose in 12-24m olds seems to have trailed off in last few months. Is this a reporting delay or something? This problem is unique to the Measles dose (9m) and is not seen in the primary doses. 
 
 ```{r import, echo=FALSE}
-ds1<-read.csv('../kb_data/KB_Child_Report.csv')
-
+ds1<-read.csv('../kb_data/KB_Child_Report 2020_3_6.csv')
+ds1$Child.Registration.ID<-1:nrow(ds1)
 ```
 
 Number of kids with 1,2,3 doses Penta, or first Measles
