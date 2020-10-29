@@ -7,7 +7,14 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(  collapse = TRUE,
+  echo=F,
+  warning=FALSE, 
+  message=FALSE,
+  comment = "#>",
+  dev=c('png','pdf'),
+  fig.path='./figures/')
+
 #install.packages('survminer')
 library(lubridate)
 library(zoo)
@@ -65,7 +72,7 @@ par(mfrow=c(1,1))
 
 #Coverage by birth cohort
 Since it looks like vaccination took off in earnest in May 2018, we will consider all kids born on or after March 1, 2018.
-```{r epi.only, echo=FALSE}
+```{r fig.s1,fig.width=5, fig.height=4 echo=FALSE}
 routine.eligible.flag<-rep(0, times=nrow(ds1))
 routine.eligible.flag[as.Date(ds1$DOB)>=as.Date('2018-03-01') ]<-1
 #table(routine.eligible.flag, pcv1)
@@ -92,14 +99,15 @@ print(tab1)
 print("Proportion of eligible kids registered in KB system who did not or did receive first dose of PCV, based on month of birth")
 print(round(tab1.prop,2))
 
-plot(monthdates,100*round(tab1.prop,2)[,2], ylab='Percent vaccinated', xlab="Birth Month", main='Uptake by dose and birth month as of Feb 2020', bty='l', ylim=c(0, 100), type='l', xaxt='n', xlim=as.Date(c('2016-07-01','2020-03-01')))
+plot(monthdates,100*round(tab1.prop,2)[,2], ylab='Percent vaccinated', xlab="Birth Month", bty='l', ylim=c(0, 100), type='l', xaxt='n', xlim=as.Date(c('2016-07-01','2020-10-01')))
 points(monthdates,100*round(tab2.prop,2)[,2], type='l', col='blue')
 points(monthdates,100*round(tab3.prop,2)[,2], type='l', col='red')
 axis(side=1, at=as.Date(c('2016-07-01','2017-07-01','2018-03-01','2018-09-01', '2019-03-01', '2019-09-01', '2020-03-01', '2020-10-01')), labels=c('Jul 2016','Jul 2017','Mar 2018','Sep 2018', 'Mar 2019', 'Sep 2019', 'Mar 2020', 'Sep 2020'))
 
 last.date.boost <- 
   max(as.Date(ds1$PCV.Booster.Date, "%Y-%m-%d"), na.rm=T)
-abline(v=last.date.boost- 30.3*9, lty=2, col='gray')
+abline(v=last.date.boost- 30.3*9, lty=2, col=rgb(1,0,0,0.7))
+abline(v=last.date.boost- 30.3*3.5, lty=2, col=rgb(0,0,1,0.7))
 ```
 
 
@@ -187,9 +195,12 @@ uptake
 #1:201
 #202:452
 #453:571
+```
 
+```{r fig1, fig.width=6, fig.height=5}
 plot1<-ggsurvplot(dose1.mod, data = dose.comp, pval =F,  fun = "event", xlab='Age (months)', ylab='Proportion vaccinated')
 #plot1+ geom_vline(xintercept = 1:5)
+plot1
 
 ```
 Timeliness: define based on within 4 weeks of recomended date https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5720480/
