@@ -24,7 +24,7 @@ NOTE, SCHEDULE FOR PENTA is 6w, 10w, 14w, First dose of Measles is given at 9m (
 Coverage of 4th dose in 12-24m olds seems to have trailed off in last few months. Is this a reporting delay or something? This problem is unique to the Measles dose (9m) and is not seen in the primary doses. 
 
 ```{r import, echo=FALSE}
-ds1<-read.csv('../kb_data/KB_Child_Report 2020_3_6.csv')
+ds1<-read.csv('../kb_data/KB_Child_Report 2020_10_23.csv')
 ds1$Child.Registration.ID<-1:nrow(ds1)
 ```
 
@@ -84,12 +84,18 @@ monthdates<-monthdates[monthdates %in% as.Date(dimnames(tab2.prop)[[1]]) ]
 monthdates<-sort(monthdates)
 
 last.date<-max(monthdates)
-plot(monthdates,100*round(tab1.prop,2)[,2], ylab='Percent vaccinated', xlab="Birth Month", main='Uptake by dose and birth month as of Oct 2019', bty='l', ylim=c(0, 100), type='l', xaxt='n', xlim=as.Date(c('2016-07-01','2019-10-01')))
+```
+
+```{figs3}
+plot(monthdates,100*round(tab1.prop,2)[,2], ylab='Percent vaccinated', xlab="Birth Month",  bty='l', ylim=c(0, 100), type='l', xaxt='n', xlim=as.Date(c('2016-07-01','2020-10-01')))
 points(monthdates,100*round(tab2.prop,2)[,2], type='l', col='blue')
 points(monthdates,100*round(tab3.prop,2)[,2], type='l', col='red')
 points(monthdates,100*round(tab4.prop,2)[,2], type='l', col='gray')
-abline(v=c(last.date-(30.3*9),last.date-(30.3*12),last.date-(30.3*15) ), type='l', lty=2, col='gray')
-axis(side=1, at=as.Date(c('2016-07-01','2017-07-01','2018-03-01','2018-09-01', '2019-03-01', '2019-09-01')), labels=c('Jul 2016','Jul 2017','Mar 2018','Sep 2018', 'Mar 2019', 'Sep 2019'))
+
+#6,10,14w; 9m
+abline(v=c(last.date-(30.3*9) ), type='l', lty=2, col='gray')
+
+axis(side=1, at=as.Date(c('2016-07-01','2017-07-01','2018-07-01','2019-07-01', '2020-07-01')), labels=c('Jul 2016','Jul 2017','Jul 2018','Jul 2019', 'Jul 2020'))
 ```
 
 What is rate of refusal?
@@ -174,9 +180,15 @@ uptake
 #202:452
 #453:571
 
-plot1<-ggsurvplot(dose1.mod, data = dose.comp, pval =F,  fun = "event", xlab='Age (months)', ylab='Proportion vaccinated')
-#plot1+ geom_vline(xintercept = 1:5)
 ```
+
+```{r fig.s2, fig.width=6, fig.height=5}
+plot1<-ggsurvplot(dose1.mod, data = dose.comp, pval =F,  fun = "event", xlab='Age (months)', ylab='Proportion vaccinated', legend=c(0.9,0.17))
+#plot1+ geom_vline(xintercept = 1:5)
+plot1
+```
+
+
 ## Timeliness
 Define based on within 4 weeks of recomended date https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5720480/
 recommended is 1.5, 3.5 and 9 months
