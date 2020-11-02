@@ -121,7 +121,7 @@ table(ds1$PCV.Booster.Given.Denied[routine.eligible.flag==1])
 ```
 
 # Look at uptake of 1,2, 3 doses by age
-First look at  uptake of 1,2, or booster dose by age in all eligible kids born after March 1,2018. This is done as a survival model because of the structure of the data. Many kids in the database don't become age-eligible to receive a dose, so we censor them.
+First look at  uptake of 1,2, or booster dose by age in all eligible kids born after March 1,2018. This is done as a survival model because of the structure of the data. Many kids in the database don't become age-eligible to receive a dose, so we censor them. Because of a quirk with the data platform, doses received after 12m were not recorded, so we censor kids 
 ```{r}
 
 long1<-ds1[,c('Child.Registration.ID', 'DOB', 'PCV1.Date', 'PCV1.Given.Denied', 'PCV2.Date', 'PCV2.Given.Denied','PCV.Booster.Date', 'PCV.Booster.Given.Denied' )]
@@ -163,7 +163,7 @@ format.ds<-function(ds, var1){
     return(x)
   }  )
   doseX.tj<-do.call('rbind.data.frame', doseX.tj.spl)
-  doseX.tj$aged[doseX.tj$aged>(365*5)] <- 365*5
+  doseX.tj$aged[doseX.tj$aged>(365)] <- 365
   return(doseX.tj)
 }
 dose1.clean<-format.ds(long2.c, 'pcv1.aged')
