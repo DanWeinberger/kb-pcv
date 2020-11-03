@@ -152,20 +152,26 @@ names(long2.c) <- c('id','variable','aged')
 long2.c<-long2.c[!is.na(long2.c$aged),]
  
 format.ds<-function(ds, var1){
-  doseX.tj<-ds[ds$variable %in% c('censor.age','init.age',var1) ,]
+  doseX.tj<-ds[ds$variable %in% c('censor.age',var1) ,]
   doseX.tj$id<-factor(doseX.tj$id)
-  doseX.tj.spl<-split(doseX.tj, doseX.tj$id)
-  doseX.tj.spl<-lapply(doseX.tj.spl, function(x){
-    x$doseX<-0
-    x$doseX[x$variable==var1]<-1
-    x$doseXN<-sum(x$doseX)
-    x<- x[x$doseXN==0 | (x$doseXN==1 & x$variable != 'censor.age'),]
-    return(x)
-  }  )
-  doseX.tj<-do.call('rbind.data.frame', doseX.tj.spl)
-  doseX.tj$aged[doseX.tj$aged>(365)] <- 365 #censor at 365 days
-  return(doseX.tj)
+  
+  doseX.tj.m <- melt(doseX.tj, id.vars=c('id','variable'))
+  doseX.tj.c <- dcast(doseX.tj.m, id~variable)
+  doseX.tj.c$doseX <- 0
+  
+  #if dose received before censoring then count
+  doseX.tj.c$doseX[doseX.tj.c[,var1] <= 365 &  !is.na(doseX.tj.c[,var1])] <- 1
+  
+  doseX.tj.c$aged <- doseX.tj.c$censor.age
+  
+  doseX.tj.c$aged[doseX.tj.c$doseX==1] <- doseX.tj.c[doseX.tj.c$doseX==1,var1]
+  
+  doseX.tj.c$aged[doseX.tj.c$aged>(365)] <- 365 #censor at 2 years
+  
+  doseX.tj.c <- doseX.tj.c[,c( 'doseX','aged'),drop=F]
+  return(doseX.tj.c)
 }
+
 dose1.clean<-format.ds(long2.c, 'pcv1.aged')
 dose1.clean$dose=1
 dose2.clean<-format.ds(long2.c, 'pcv2.aged')
