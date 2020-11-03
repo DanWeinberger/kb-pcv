@@ -72,7 +72,7 @@ par(mfrow=c(1,1))
 
 #Coverage by birth cohort
 Since it looks like vaccination took off in earnest in May 2018, we will consider all kids born on or after March 1, 2018.
-```{r fig.s1,fig.width=5, fig.height=4, echo=FALSE}
+```{r fig.s1,fig.width=6, fig.height=4, echo=FALSE}
 routine.eligible.flag<-rep(0, times=nrow(ds1))
 routine.eligible.flag[as.Date(ds1$DOB)>=as.Date('2018-03-01') ]<-1
 #table(routine.eligible.flag, pcv1)
@@ -102,12 +102,16 @@ print(round(tab1.prop,2))
 plot(monthdates,100*round(tab1.prop,2)[,2], ylab='Percent vaccinated', xlab="Birth Month", bty='l', ylim=c(0, 100), type='l', xaxt='n', xlim=as.Date(c('2016-07-01','2020-10-01')))
 points(monthdates,100*round(tab2.prop,2)[,2], type='l', col='blue')
 points(monthdates,100*round(tab3.prop,2)[,2], type='l', col='red')
-axis(side=1, at=as.Date(c('2016-07-01','2017-07-01','2018-03-01','2018-09-01', '2019-03-01', '2019-09-01', '2020-03-01', '2020-10-01')), labels=c('Jul 2016','Jul 2017','Mar 2018','Sep 2018', 'Mar 2019', 'Sep 2019', 'Mar 2020', 'Sep 2020'))
+axis(side=1, at=as.Date(c('2016-03-01','2017-03-01','2018-03-01','2019-03-01',  '2020-03-01')), labels=c('Mar 2016','Mar 2017','Mar 2018', 'Mar 2019', 'Mar 2020'))
 
 last.date.boost <- 
   max(as.Date(ds1$PCV.Booster.Date, "%Y-%m-%d"), na.rm=T)
 abline(v=last.date.boost- 30.3*9, lty=2, col=rgb(1,0,0,0.7))
 abline(v=last.date.boost- 30.3*3.5, lty=2, col=rgb(0,0,1,0.7))
+
+abline(v=seq.Date(from=as.Date('2016-03-01') , to=as.Date('2020-10-01'), by='quarter') , col=rgb(0,0,0,alpha=0.05))
+
+
 ```
 
 
@@ -491,7 +495,7 @@ cov.date<-aggregate(ds.cov2.12.24m[,c('dose1.vax.status.date','dose2.vax.status.
 trans.col<- rgb(0,0,0, alpha=0.1)
 ```
 
-```{r fig4, fig.width=5, fig.height=4}
+```{r figxx, fig.width=5, fig.height=4}
 plot(cov.date$monthdate, cov.date$dose1.vax.status.date, type='l', bty='l', xaxt='n', xlab='Date', ylab='Uptake (12-23m)', ylim=c(0,1), las=1)
 abline(h=c(0.2, 0.4, 0.6,0.8,1.0), col=trans.col, lty=1)
 points(cov.date$monthdate,cov.date$dose1.vax.status.date, type='l' , lty=1, lwd=2)
@@ -515,7 +519,7 @@ hist(ds1$age.3rd.dose/30.3)
 hist(ds1$age.1st.dose[year(as.Date(ds1$PCV1.Date, "%Y-%m-%d"))==2018 ] /30.3, main='Dose 1 in 2018')
 ```
 
-```{r fig5, fig.width=7, fig.height=2.5}
+```{r fig4, fig.width=7, fig.height=2.5}
 
 par(mfrow=c(1,3), mar=c(4,3,1,1))
 hist(ds1$age.1st.dose[year(as.Date(ds1$PCV1.Date, "%Y-%m-%d"))>=2019 ] /30.3, main='Dose1, 6w', xlim=c(0,14), breaks=30, freq=F, xlab='Age(m)')
@@ -566,7 +570,7 @@ The vast majority have missing information. Is this because the question wasn't 
 
 #And how about in the PCTS system?
 In what age group are 'pneumonia cases' calculated? Is tis kids only? Including adults?
-```{r pcts, echo=FALSE}
+```{r pcts, eval=F,echo=FALSE}
 pc1<-read.csv('../kb_data/Updated_PCTS_Count_Data.csv')
   # "Infant.death.Pneumonia..1.11.Months" ;"Infant.death.Pneumonia..1.5..Yrs.";"Pneumonia.Cases"  ;"Month"    
 pc1$Block <- autoFill(pc1$Block)
@@ -584,7 +588,7 @@ par(mfrow=c(1,1))
 ```
 
 Look at PCTS data just for blocks present in Khushi baby data
-```{r}
+```{r, eval=F}
 pc2<-pc1[pc1$Block %in% blocknames,]
 pc2$month2<-paste0('01-',pc2$Month)
 pc2$date<-as.Date(pc2$month2, format = '%d-%b%Y')
@@ -600,7 +604,7 @@ plot(pc3$date, pc3$Infant.death.Pneumonia..1.5..Yrs., col=cols[pc3$block])
 ```
 
 Map. Need to overlay a shapefile
-```{r}
+```{r, eval=F}
 ds1$Updated.Lat[ds1$Updated.Lat<20]<-NA
 ds1$Updated.Long[ds1$Updated.Long<60]<-NA
 

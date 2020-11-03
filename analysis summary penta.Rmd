@@ -7,8 +7,13 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
-#install.packages('survminer')
+knitr::opts_chunk$set(  collapse = TRUE,
+  echo=F,
+  warning=FALSE, 
+  message=FALSE,
+  comment = "#>",
+  dev=c('png','pdf'),
+  fig.path='./figures_penta_24m/')#install.packages('survminer')
 library(lubridate)
 library(zoo)
 library(reshape2)
